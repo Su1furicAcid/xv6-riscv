@@ -22,6 +22,8 @@ int getpid(void);
 char* sbrk(int);
 int sleep(int);
 int uptime(void);
+// 获取进程数量
+int getprocnum(void);
 
 // ulib.c
 int stat(const char*, struct stat*);

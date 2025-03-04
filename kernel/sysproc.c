@@ -91,3 +91,11 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+// 获取进程数量
+uint64
+sys_getprocnum(void)
+{
+  // TODO: 实现获取进程数量的系统调用
+  return 100;
+}
