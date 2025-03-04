@@ -693,3 +693,18 @@ procdump(void)
     printf("\n");
   }
 }
+
+// 获取进程数量
+int getprocnum(void) {
+  struct proc *p;
+  int count = 0;
+
+  acquire(&wait_lock);
+  for(p = proc; p < &proc[NPROC]; p++) {
+    if(p->state != UNUSED) {
+      count++;
+    }
+  }
+  release(&wait_lock);
+  return count;
+}

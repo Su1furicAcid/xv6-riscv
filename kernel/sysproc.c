@@ -97,5 +97,5 @@ uint64
 sys_getprocnum(void)
 {
   // TODO: 实现获取进程数量的系统调用
-  return 100;
+  return getprocnum();
 }
