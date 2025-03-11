@@ -140,6 +140,7 @@ UPROGS=\
 	$U/_wc\
 	$U/_zombie\
 	$U/_getprocnum\
+	$U/_gpcn_test\
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)
