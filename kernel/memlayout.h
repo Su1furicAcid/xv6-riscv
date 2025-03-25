@@ -39,6 +39,10 @@
 #define KERNBASE 0x80000000L
 #define PHYSTOP (KERNBASE + 128*1024*1024)
 
+// 在物理内存顶部划分一个16MB的空间给buddy system
+#define BUDDY_START (PHYSTOP - 16*1024*1024)
+#define BUDDY_END PHYSTOP
+
 // map the trampoline page to the highest address,
 // in both user and kernel space.
 #define TRAMPOLINE (MAXVA - PGSIZE)
