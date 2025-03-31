@@ -141,6 +141,7 @@ UPROGS=\
 	$U/_zombie\
 	$U/_getprocnum\
 	$U/_gpcn_test\
+	$U/_memory_demo\
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)

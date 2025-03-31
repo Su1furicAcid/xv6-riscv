@@ -99,3 +99,11 @@ sys_getprocnum(void)
   // TODO: 实现获取进程数量的系统调用
   return getprocnum();
 }
+
+// 动态内存分配器演示demo
+uint64
+sys_memory_demo(void)
+{
+  memory_demo();
+  return 0;
+}

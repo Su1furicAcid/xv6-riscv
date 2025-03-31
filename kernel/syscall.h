@@ -22,3 +22,5 @@
 #define SYS_close  21
 // 系统调用：返回进程数量
 #define SYS_getprocnum 22
+// 系统调用：演示动态内存分配器
+#define SYS_memory_demo 23

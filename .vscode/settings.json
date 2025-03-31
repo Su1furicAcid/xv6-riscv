@@ -4,6 +4,7 @@
         "*.wxss": "css",
         "*.wxs": "javascript",
         "*.json": "jsonc",
-        "cstdio": "c"
+        "cstdio": "c",
+        "user.h": "c"
     }
 }

@@ -23,13 +23,16 @@ struct {
   struct run *freelist;
 } kmem;
 
+void buddysystem_init(void* start, void* end);
+void slab_init(void);
+
 void
 kinit()
 {
   initlock(&kmem.lock, "kmem");
   freerange(end, (void*)BUDDY_START);
   // 初始化伙伴系统和slab分配器
-  buddysystem_init();
+  buddysystem_init((void*)BUDDY_START, (void*)BUDDY_END);
   slab_init();
 }
 
@@ -102,19 +105,6 @@ struct buddy {
 
 struct buddy buddy_system;
 
-// initialize the buddy system
-void buddysystem_init(void* start, void* end) {
-  initlock(&buddy_system.lock, "buddy_system");
-  for (int i = 0; i < MAX_ORDER; i++) {
-    // initialize the free list using NULL
-    buddy_system.freelist[i] = 0;
-  }
-  char* p = (char*)PGROUNDUP((uint64)start);
-  for (; p + PGSIZE <= (char*)end; p += PGSIZE) {
-    buddysystem_free(p, 0);
-  }
-}
-
 // free a page
 void buddysystem_free(void *pa, int order) {
   acquire(&buddy_system.lock);
@@ -173,6 +163,19 @@ void* buddysystem_alloc(int order) {
   return 0;
 }
 
+// initialize the buddy system
+void buddysystem_init(void* start, void* end) {
+  initlock(&buddy_system.lock, "buddy_system");
+  for (int i = 0; i < MAX_ORDER; i++) {
+    // initialize the free list using NULL
+    buddy_system.freelist[i] = 0;
+  }
+  char* p = (char*)PGROUNDUP((uint64)start);
+  for (; p + PGSIZE <= (char*)end; p += PGSIZE) {
+    buddysystem_free(p, 0);
+  }
+}
+
 // define the slab allocator
 struct slab {
   struct run *freelist;
@@ -181,13 +184,6 @@ struct slab {
 };
 
 struct slab slab_allocator;
-
-// initialize the slab allocator
-void slab_init(void) {
-  initlock(&slab_allocator.lock, "slab_allocator");
-  slab_allocator.object_size = 64;
-  slab_allocator.freelist = 0;
-}
 
 // allocate an object from the slab allocator
 void* slab_alloc(void) {
@@ -211,8 +207,15 @@ void slab_free(void *pa) {
   release(&slab_allocator.lock);
 }
 
+// initialize the slab allocator
+void slab_init(void) {
+  initlock(&slab_allocator.lock, "slab_allocator");
+  slab_allocator.object_size = 64;
+  slab_allocator.freelist = 0;
+}
+
 // implement kmalloc and kmfree using buddy system and slab allocator
-void* kmalloc(int size) {
+void* malloc(int size) {
   if (size <= slab_allocator.object_size) {
     return slab_alloc();
   } else {
@@ -223,7 +226,7 @@ void* kmalloc(int size) {
   }
 }
 
-void kmfree(void *pa, int size) {
+void mfree(void *pa, int size) {
   if (size <= slab_allocator.object_size) {
     slab_free(pa);
   } else {
