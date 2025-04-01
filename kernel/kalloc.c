@@ -91,9 +91,9 @@ kalloc(void)
 // -----------------------------------------------
 // Allocate physical memory using buddy system and slab allocator
 
-// range from 4KB(1 page) to 8MB(1024 pages), 11 levels, 16MB in total
-// order 0: 4KB, 1: 8KB, 2: 16KB, ..., 11: 8MB
-#define MAX_ORDER 11
+// range from 4KB(1 page) to 16MB(4096 pages), 13 levels
+// order 0: 4KB, 1: 8KB, 2: 16KB, ..., 11: 8MB, 12: 16MB
+#define MAX_ORDER 13
 
 // define the buddy system
 struct buddy {
@@ -108,11 +108,10 @@ struct buddy buddy_system;
 // free a page
 void buddysystem_free(void *pa, int order) {
   acquire(&buddy_system.lock);
-  struct run *r = (struct run*)pa;
 
   // Try to merge with buddy blocks
-  while (order < MAX_ORDER) {
-    uint64 buddy_pa = (uint64)pa ^ (1 << (order + 12)); // Calculate buddy address
+  while (order < MAX_ORDER - 1) {
+    uint64 buddy_pa = ((uint64)pa ^ (1 << (order + 12))); // Calculate buddy address
     struct run *buddy = (struct run*)buddy_pa;
 
     // Check if the buddy block is free and of the same order
@@ -142,7 +141,7 @@ void buddysystem_free(void *pa, int order) {
   }
 
   // Add the merged block to the free list
-  r = (struct run*)pa;
+  struct run *r = (struct run*)pa;
   r->next = buddy_system.freelist[order];
   buddy_system.freelist[order] = r;
   release(&buddy_system.lock);
@@ -151,14 +150,31 @@ void buddysystem_free(void *pa, int order) {
 void* buddysystem_alloc(int order) {
   acquire(&buddy_system.lock);
   struct run *r = 0;
+
+  // 从指定的 order 开始向上查找更大的块
   for (int i = order; i < MAX_ORDER; i++) {
     if (buddy_system.freelist[i]) {
       r = buddy_system.freelist[i];
       buddy_system.freelist[i] = r->next;
+
+      // 如果找到的块比需要的块大，则切分
+      while (i > order) {
+        i--;
+        uint64 buddy_pa = (uint64)r + (1 << (i + 12)); // 计算伙伴地址
+        struct run *buddy = (struct run*)buddy_pa;
+
+        // 将伙伴块加入到更小的 order 的空闲链表中
+        buddy->next = buddy_system.freelist[i];
+        buddy_system.freelist[i] = buddy;
+      }
+
       release(&buddy_system.lock);
       return (void*)r;
     }
   }
+
+  // 如果没有找到合适的块，分配失败
+  printf("Buddy allocation failed: no free blocks for order %d\n", order);
   release(&buddy_system.lock);
   return 0;
 }
@@ -170,9 +186,20 @@ void buddysystem_init(void* start, void* end) {
     // initialize the free list using NULL
     buddy_system.freelist[i] = 0;
   }
+
   char* p = (char*)PGROUNDUP((uint64)start);
   for (; p + PGSIZE <= (char*)end; p += PGSIZE) {
     buddysystem_free(p, 0);
+  }
+
+  for (int i = 0; i < MAX_ORDER; i++) {
+    printf("Order %d: ", i);
+    struct run *curr = buddy_system.freelist[i];
+    while (curr) {
+      printf("%p -> ", curr);
+      curr = curr->next;
+    }
+    printf("NULL\n");
   }
 }
 
@@ -195,6 +222,7 @@ void* slab_alloc(void) {
     return (void*)r;
   }
   release(&slab_allocator.lock);
+  printf("Slab allocation failed: no free blocks\n");
   return buddysystem_alloc(0);
 }
 
