@@ -24,8 +24,6 @@ int sleep(int);
 int uptime(void);
 // 获取进程数量
 int getprocnum(void);
-// 演示动态内存分配器
-void memory_demo(void);
 
 // ulib.c
 int stat(const char*, struct stat*);

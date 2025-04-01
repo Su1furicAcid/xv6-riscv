@@ -37,4 +37,3 @@ entry("sbrk");
 entry("sleep");
 entry("uptime");
 entry("getprocnum");
-entry("memory_demo");
