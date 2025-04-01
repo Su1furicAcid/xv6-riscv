@@ -713,28 +713,28 @@ int getprocnum(void) {
 void memory_demo(void) {
   printf("Starting memory demo...\n");
 
-  // // 小内存分配和释放（使用 slab 分配器）
-  // void *small_allocations[5];
-  // for (int i = 0; i < 5; i++) {
-  //   small_allocations[i] = malloc(32); // 分配 32 字节的小内存
-  //   if (small_allocations[i]) {
-  //     printf("Slab allocated small block %d at address %p\n", i, small_allocations[i]);
-  //   } else {
-  //     printf("Slab allocation failed for small block %d\n", i);
-  //   }
-  // }
+  // 小内存分配和释放（使用 slab 分配器）
+  void *small_allocations[5];
+  for (int i = 0; i < 5; i++) {
+    small_allocations[i] = malloc(32); // 分配 32 字节的小内存
+    if (small_allocations[i]) {
+      printf("Slab allocated small block %d at address %p\n", i, small_allocations[i]);
+    } else {
+      printf("Slab allocation failed for small block %d\n", i);
+    }
+  }
 
-  // for (int i = 0; i < 5; i++) {
-  //   if (small_allocations[i]) {
-  //     mfree(small_allocations[i], 32); // 释放小内存
-  //     printf("Slab freed small block %d at address %p\n", i, small_allocations[i]);
-  //   }
-  // }
+  for (int i = 0; i < 5; i++) {
+    if (small_allocations[i]) {
+      mfree(small_allocations[i], 32); // 释放小内存
+      printf("Slab freed small block %d at address %p\n", i, small_allocations[i]);
+    }
+  }
 
   // 大内存分配和释放（使用伙伴系统）
-  void *large_allocations[3];
-  int large_sizes[] = {8192, 16384, 32768}; // 分别分配 8KB、16KB 和 32KB
-  for (int i = 0; i < 3; i++) {
+  void *large_allocations[5];
+  int large_sizes[] = {8192, 16384, 32768, 8192, 8192}; // 分别分配 8KB、16KB 和 32KB
+  for (int i = 0; i < 5; i++) {
     large_allocations[i] = malloc(large_sizes[i]);
     if (large_allocations[i]) {
       printf("Buddy allocated large block %d (%d bytes) at address %p\n", i, large_sizes[i], large_allocations[i]);
@@ -743,7 +743,7 @@ void memory_demo(void) {
     }
   }
 
-  for (int i = 0; i < 3; i++) {
+  for (int i = 0; i < 5; i++) {
     if (large_allocations[i]) {
       mfree(large_allocations[i], large_sizes[i]); // 释放大内存
       printf("Buddy freed large block %d (%d bytes) at address %p\n", i, large_sizes[i], large_allocations[i]);

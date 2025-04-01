@@ -215,15 +215,29 @@ struct slab slab_allocator;
 // allocate an object from the slab allocator
 void* slab_alloc(void) {
   acquire(&slab_allocator.lock);
-  struct run *r = slab_allocator.freelist;
-  if (r) {
-    slab_allocator.freelist = r->next;
-    release(&slab_allocator.lock);
-    return (void*)r;
+
+  // 如果 freelist 为空，从伙伴系统分配一页并初始化
+  if (!slab_allocator.freelist) {
+    void *page = buddysystem_alloc(0); // 分配一页
+    if (!page) {
+      release(&slab_allocator.lock);
+      printf("Slab allocation failed: no free blocks\n");
+      return 0;
+    }
+
+    // 将这一页分割成多个小对象
+    for (int i = 0; i < PGSIZE / slab_allocator.object_size; i++) {
+      struct run *r = (struct run*)((char*)page + i * slab_allocator.object_size);
+      r->next = slab_allocator.freelist;
+      slab_allocator.freelist = r;
+    }
   }
+
+  // 从 freelist 中分配一个对象
+  struct run *r = slab_allocator.freelist;
+  slab_allocator.freelist = r->next;
   release(&slab_allocator.lock);
-  printf("Slab allocation failed: no free blocks\n");
-  return buddysystem_alloc(0);
+  return (void*)r;
 }
 
 // free an object to the slab allocator
@@ -240,6 +254,22 @@ void slab_init(void) {
   initlock(&slab_allocator.lock, "slab_allocator");
   slab_allocator.object_size = 64;
   slab_allocator.freelist = 0;
+
+  // 初始化 Slab 分配器的空闲链表
+  for (int i = 0; i < 4; i++) { // 假设初始化 4 页内存
+    void *page = buddysystem_alloc(0); // 从伙伴系统分配一页
+    if (!page) {
+      printf("Slab initialization failed: no free blocks\n");
+      break;
+    }
+
+    // 将这一页分割成多个小对象
+    for (int j = 0; j < PGSIZE / slab_allocator.object_size; j++) {
+      struct run *r = (struct run*)((char*)page + j * slab_allocator.object_size);
+      r->next = slab_allocator.freelist;
+      slab_allocator.freelist = r;
+    }
+  }
 }
 
 // implement kmalloc and kmfree using buddy system and slab allocator
