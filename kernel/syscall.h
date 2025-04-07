@@ -22,3 +22,7 @@
 #define SYS_close  21
 // 系统调用：返回进程数量
 #define SYS_getprocnum 22
+// 系统调用：演示分配器
+#define SYS_demo_allocator 23
+// 系统调用：我的sbrk
+#define SYS_mysbrk 24

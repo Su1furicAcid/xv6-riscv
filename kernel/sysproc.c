@@ -49,6 +49,25 @@ sys_sbrk(void)
 }
 
 uint64
+sys_mysbrk(void)
+{
+  uint64 addr;
+  int n;
+
+  argint(0, &n);
+  addr = myproc()->sz;
+  if(mygrowproc(n) < 0)
+    return -1;
+  return addr;
+}
+
+void
+sys_demo_allocator(void)
+{
+  demo_allocator();
+}
+
+uint64
 sys_sleep(void)
 {
   int n;

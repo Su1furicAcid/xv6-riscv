@@ -24,6 +24,9 @@ int sleep(int);
 int uptime(void);
 // 获取进程数量
 int getprocnum(void);
+// 演示分配器
+void demo_allocator(void);
+int mysbrk(int);
 
 // ulib.c
 int stat(const char*, struct stat*);

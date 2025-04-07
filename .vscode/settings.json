@@ -5,6 +5,7 @@
         "*.wxs": "javascript",
         "*.json": "jsonc",
         "cstdio": "c",
-        "user.h": "c"
+        "user.h": "c",
+        "defs.h": "c"
     }
 }

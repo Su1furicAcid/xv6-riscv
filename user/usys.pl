@@ -37,3 +37,5 @@ entry("sbrk");
 entry("sleep");
 entry("uptime");
 entry("getprocnum");
+entry("demo_allocator");
+entry("mysbrk");

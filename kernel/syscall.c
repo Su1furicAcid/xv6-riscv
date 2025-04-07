@@ -102,6 +102,8 @@ extern uint64 sys_link(void);
 extern uint64 sys_mkdir(void);
 extern uint64 sys_close(void);
 extern uint64 sys_getprocnum(void);
+extern uint64 sys_demo_allocator(void);
+extern uint64 sys_mysbrk(void);
 
 // An array mapping syscall numbers from syscall.h
 // to the function that handles the system call.
@@ -127,7 +129,9 @@ static uint64 (*syscalls[])(void) = {
 [SYS_link]    sys_link,
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
-[SYS_getprocnum] sys_getprocnum
+[SYS_getprocnum] sys_getprocnum,
+[SYS_demo_allocator] sys_demo_allocator,
+[SYS_mysbrk] sys_mysbrk
 };
 
 void
