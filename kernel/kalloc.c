@@ -91,9 +91,10 @@ kalloc(void)
 // -----------------------------------------------
 // Allocate physical memory using buddy system and slab allocator
 
-// range from 4KB(1 page) to 16MB(4096 pages), 13 levels
-// order 0: 4KB, 1: 8KB, 2: 16KB, ..., 11: 8MB, 12: 16MB
-#define MAX_ORDER 13
+// range from 64B to 16MB
+// order 0: 64B, order 1: 128B, ..., order 18: 16MB
+#define MAX_ORDER 19
+#define UNIT_SIZE (1 << 6) // 64BB
 
 // define the buddy system
 struct buddy {
@@ -111,7 +112,7 @@ void buddysystem_free(void *pa, int order) {
 
   // Try to merge with buddy blocks
   while (order < MAX_ORDER - 1) {
-    uint64 buddy_pa = ((uint64)pa ^ (1 << (order + 12))); // Calculate buddy address
+    uint64 buddy_pa = ((uint64)pa ^ (1 << (order + UNIT_SIZE))); // Calculate buddy address
     struct run *buddy = (struct run*)buddy_pa;
 
     // Check if the buddy block is free and of the same order
@@ -190,16 +191,6 @@ void buddysystem_init(void* start, void* end) {
   char* p = (char*)PGROUNDUP((uint64)start);
   for (; p + PGSIZE <= (char*)end; p += PGSIZE) {
     buddysystem_free(p, 0);
-  }
-
-  for (int i = 0; i < MAX_ORDER; i++) {
-    printf("Order %d: ", i);
-    struct run *curr = buddy_system.freelist[i];
-    while (curr) {
-      printf("%p -> ", curr);
-      curr = curr->next;
-    }
-    printf("NULL\n");
   }
 }
 

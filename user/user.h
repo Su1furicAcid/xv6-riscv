@@ -26,7 +26,7 @@ int uptime(void);
 int getprocnum(void);
 // 演示分配器
 void demo_allocator(void);
-int mysbrk(int);
+uint64 mysbrk(int);
 
 // ulib.c
 int stat(const char*, struct stat*);

@@ -267,14 +267,14 @@ uvmalloc_malloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
 
   oldsz = PGROUNDUP(oldsz);
   for(a = oldsz; a < newsz; a += PGSIZE){
-    mem = (char *)malloc(PGSIZE); // 使用 malloc 分配内存
+    mem = (char *)malloc(PGSIZE);
     if(mem == 0){
       uvmdealloc(pagetable, a, oldsz);
       return 0;
     }
     memset(mem, 0, PGSIZE);
     if(mappages(pagetable, a, PGSIZE, (uint64)mem, PTE_R|PTE_U|xperm) != 0){
-      mfree(mem, PGSIZE); // 使用 mfree 释放内存
+      mfree(mem, PGSIZE);
       uvmdealloc(pagetable, a, oldsz);
       return 0;
     }

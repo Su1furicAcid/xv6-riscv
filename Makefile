@@ -142,6 +142,7 @@ UPROGS=\
 	$U/_getprocnum\
 	$U/_gpcn_test\
 	$U/_demo_alloc\
+	$U/_test_mysbrk\
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)
