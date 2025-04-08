@@ -9,6 +9,20 @@ int main(void)
 
     printf("Expanding heap by 64 bytes...\n");
     uint64 new_brk = mysbrk(64);
+    printf("New program break after expansion: 0x%lx\n", new_brk);
+    if (new_brk == (uint64)-1) {
+        printf("mysbrk failed to expand heap\n");
+        exit(1);
+    }
+    printf("New program break: 0x%lx\n", mysbrk(0));
+
+    printf("Writing data to the newly allocated memory...\n");
+    char *allocated_memory = (char *)new_brk;
+    for (int i = 0; i < 64; i++) {
+        allocated_memory[i] = (char)(i % 256);
+    }
+    printf("Data written successfully.\n");
+
     printf("Expanding heap by 64 bytes...\n");
     uint64 new_new_brk = mysbrk(64);
     printf("New program break after expansion: 0x%lx\n", new_new_brk);
@@ -19,15 +33,21 @@ int main(void)
     printf("New program break: 0x%lx\n", mysbrk(0));
 
     printf("Writing data to the newly allocated memory...\n");
-    char *allocated_memory = (char *)new_brk;
-    for (int i = 0; i < 128; i++) {
-        allocated_memory[i] = (char)(i % 256);
+    char *allocated_memory_2 = (char *)new_new_brk;
+    for (int i = 0; i < 64; i++) {
+        allocated_memory_2[i] = (char)((i + 1) % 256);
     }
     printf("Data written successfully.\n");
 
     printf("Verifying written data...\n");
-    for (int i = 0; i < 128; i++) {
+    for (int i = 0; i < 64; i++) {
         if (allocated_memory[i] != (char)(i % 256)) {
+            printf("Data verification failed at offset %d\n", i);
+            exit(1);
+        }
+    }
+    for (int i = 0; i < 64; i++) {
+        if (allocated_memory_2[i] != (char)((i + 1) % 256)) {
             printf("Data verification failed at offset %d\n", i);
             exit(1);
         }
