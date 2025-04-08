@@ -292,6 +292,28 @@ uvmalloc_malloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
 void
 demo_allocator()
 {
+  printf("Testing zero-byte allocation...\n");
+  void *zero_alloc = malloc(0);
+  if (zero_alloc == 0) {
+    printf("Correctly handled zero-byte allocation.\n");
+  } else {
+    printf("Error: Allocated memory for zero-byte request at address: %p\n", zero_alloc);
+    mfree(zero_alloc, 0);
+  }
+
+  printf("Testing non-aligned allocation...\n");
+  void *non_aligned_alloc = malloc(100); // 请求非对齐大小
+  if (non_aligned_alloc == 0) {
+    printf("Failed to allocate memory for non-aligned size (100 bytes).\n");
+  } else {
+    if ((uint64)non_aligned_alloc % (1 << 6) == 0) {
+      printf("Memory allocated at address %p is correctly aligned.\n", non_aligned_alloc);
+    } else {
+      printf("Error: Memory allocated at address %p is not aligned.\n", non_aligned_alloc);
+    }
+    mfree(non_aligned_alloc, 100);
+  }
+
   printf("Allocating small objects using malloc...\n");
   void *malloc_objs[5];
   for (int i = 0; i < 5; i++) {

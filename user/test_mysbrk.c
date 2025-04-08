@@ -40,6 +40,5 @@ int main(void)
         exit(1);
     }
     printf("Heap successfully shrunk. Current program break: 0x%lx\n", mysbrk(0));
-    printf("=== mysbrk test completed ===\n");
     exit(0);
 }
