@@ -292,54 +292,44 @@ uvmalloc_malloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
 void
 demo_allocator()
 {
-  printf("=== malloc/mfree Demo ===\n");
-
-  // 分配多个小对象
   printf("Allocating small objects using malloc...\n");
   void *malloc_objs[5];
   for (int i = 0; i < 5; i++) {
-    malloc_objs[i] = malloc(64); // 分配 64 字节的小对象
+    malloc_objs[i] = malloc(64);
     printf("Allocated malloc object %d at address: %p\n", i, malloc_objs[i]);
   }
 
-  // 释放部分小对象
   printf("Freeing some malloc objects...\n");
   for (int i = 0; i < 3; i++) {
-    mfree(malloc_objs[i], 64); // 释放 64 字节的小对象
+    mfree(malloc_objs[i], 64);
     printf("Freed malloc object %d at address: %p\n", i, malloc_objs[i]);
   }
 
-  // 再次分配小对象，观察是否复用已释放的对象
   printf("Reallocating small objects...\n");
   for (int i = 0; i < 3; i++) {
-    malloc_objs[i] = malloc(64); // 再次分配 64 字节的小对象
+    malloc_objs[i] = malloc(64);
     printf("Reallocated malloc object %d at address: %p\n", i, malloc_objs[i]);
   }
 
-  // 分配不同大小的内存块
   printf("\nAllocating larger memory blocks using malloc...\n");
   void *malloc_blocks[3];
-  int sizes[3] = {4096, 8192, 16384}; // 分别分配 4KB, 8KB, 16KB
+  int sizes[3] = {4096, 8192, 16384};
   for (int i = 0; i < 3; i++) {
     malloc_blocks[i] = malloc(sizes[i]);
     printf("Allocated malloc block of size %d bytes at address: %p\n", sizes[i], malloc_blocks[i]);
   }
 
-  // 释放部分内存块
   printf("Freeing some malloc blocks...\n");
   for (int i = 0; i < 2; i++) {
     mfree(malloc_blocks[i], sizes[i]);
     printf("Freed malloc block of size %d bytes at address: %p\n", sizes[i], malloc_blocks[i]);
   }
 
-  // 再次分配内存块，观察是否复用已释放的块
   printf("Reallocating larger memory blocks...\n");
   for (int i = 0; i < 2; i++) {
     malloc_blocks[i] = malloc(sizes[i]);
     printf("Reallocated malloc block of size %d bytes at address: %p\n", sizes[i], malloc_blocks[i]);
   }
-
-  printf("\n=== Demo Completed ===\n");
 }
 
 // Deallocate user pages to bring the process size from oldsz to
