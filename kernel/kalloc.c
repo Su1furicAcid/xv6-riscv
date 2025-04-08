@@ -24,16 +24,14 @@ struct {
 } kmem;
 
 void buddysystem_init(void* start, void* end);
-void slab_init(void);
 
 void
 kinit()
 {
   initlock(&kmem.lock, "kmem");
   freerange(end, (void*)BUDDY_START);
-  // 初始化伙伴系统和slab分配器
+  // 初始化伙伴系统
   buddysystem_init((void*)BUDDY_START, (void*)BUDDY_END);
-  slab_init();
 }
 
 void
@@ -89,12 +87,13 @@ kalloc(void)
 
 
 // -----------------------------------------------
-// Allocate physical memory using buddy system and slab allocator
+// Allocate physical memory using buddy system
 
 // range from 64B to 16MB
-// order 0: 64B, order 1: 128B, ..., order 18: 16MB
+// order 0: 64B, ..., 6: 4KB, ..., 18: 16MB
 #define MAX_ORDER 19
-#define UNIT_SIZE (1 << 6) // 64BB
+#define UNIT_SIZE (1 << 6) // 64B
+#define UNIT_SIZE_LOG2 6
 
 // define the buddy system
 struct buddy {
@@ -112,7 +111,7 @@ void buddysystem_free(void *pa, int order) {
 
   // Try to merge with buddy blocks
   while (order < MAX_ORDER - 1) {
-    uint64 buddy_pa = ((uint64)pa ^ (1 << (order + UNIT_SIZE))); // Calculate buddy address
+    uint64 buddy_pa = ((uint64)pa ^ (1 << (order + UNIT_SIZE_LOG2))); // Calculate buddy address
     struct run *buddy = (struct run*)buddy_pa;
 
     // Check if the buddy block is free and of the same order
@@ -161,7 +160,7 @@ void* buddysystem_alloc(int order) {
       // 如果找到的块比需要的块大，则切分
       while (i > order) {
         i--;
-        uint64 buddy_pa = (uint64)r + (1 << (i + 12)); // 计算伙伴地址
+        uint64 buddy_pa = (uint64)r + (1 << (i + UNIT_SIZE_LOG2)); // 计算伙伴地址
         struct run *buddy = (struct run*)buddy_pa;
 
         // 将伙伴块加入到更小的 order 的空闲链表中
@@ -190,98 +189,26 @@ void buddysystem_init(void* start, void* end) {
 
   char* p = (char*)PGROUNDUP((uint64)start);
   for (; p + PGSIZE <= (char*)end; p += PGSIZE) {
-    buddysystem_free(p, 0);
+    buddysystem_free(p, 6);
+  }
+
+  for (int i = 0; i < MAX_ORDER; i++) {
+    // initialize the free list using NULL
+    printf("Buddy system free list[%d]: %p\n", i, buddy_system.freelist[i]);
   }
 }
 
-// define the slab allocator
-struct slab {
-  struct run *freelist;
-  struct spinlock lock;
-  int object_size;
-};
-
-struct slab slab_allocator;
-
-// allocate an object from the slab allocator
-void* slab_alloc(void) {
-  acquire(&slab_allocator.lock);
-
-  // 如果 freelist 为空，从伙伴系统分配一页并初始化
-  if (!slab_allocator.freelist) {
-    void *page = buddysystem_alloc(0); // 分配一页
-    if (!page) {
-      release(&slab_allocator.lock);
-      printf("Slab allocation failed: no free blocks\n");
-      return 0;
-    }
-
-    // 将这一页分割成多个小对象
-    for (int i = 0; i < PGSIZE / slab_allocator.object_size; i++) {
-      struct run *r = (struct run*)((char*)page + i * slab_allocator.object_size);
-      r->next = slab_allocator.freelist;
-      slab_allocator.freelist = r;
-    }
-  }
-
-  // 从 freelist 中分配一个对象
-  struct run *r = slab_allocator.freelist;
-  slab_allocator.freelist = r->next;
-  release(&slab_allocator.lock);
-  return (void*)r;
-}
-
-// free an object to the slab allocator
-void slab_free(void *pa) {
-  acquire(&slab_allocator.lock);
-  struct run *r = (struct run*)pa;
-  r->next = slab_allocator.freelist;
-  slab_allocator.freelist = r;
-  release(&slab_allocator.lock);
-}
-
-// initialize the slab allocator
-void slab_init(void) {
-  initlock(&slab_allocator.lock, "slab_allocator");
-  slab_allocator.object_size = 64;
-  slab_allocator.freelist = 0;
-
-  // 初始化 Slab 分配器的空闲链表
-  for (int i = 0; i < 4; i++) { // 假设初始化 4 页内存
-    void *page = buddysystem_alloc(0); // 从伙伴系统分配一页
-    if (!page) {
-      printf("Slab initialization failed: no free blocks\n");
-      break;
-    }
-
-    // 将这一页分割成多个小对象
-    for (int j = 0; j < PGSIZE / slab_allocator.object_size; j++) {
-      struct run *r = (struct run*)((char*)page + j * slab_allocator.object_size);
-      r->next = slab_allocator.freelist;
-      slab_allocator.freelist = r;
-    }
-  }
-}
-
-// implement kmalloc and kmfree using buddy system and slab allocator
+// implement kmalloc and kmfree using buddy system
 void* malloc(int size) {
-  if (size <= slab_allocator.object_size) {
-    return slab_alloc();
-  } else {
-    int order = 0;
-    while ((1 << order) * PGSIZE < size)
-      order++;
-    return buddysystem_alloc(order);
-  }
+  int order = 0;
+  while ((1 << order) * UNIT_SIZE < size)
+    order++;
+  return buddysystem_alloc(order);
 }
 
 void mfree(void *pa, int size) {
-  if (size <= slab_allocator.object_size) {
-    slab_free(pa);
-  } else {
-    int order = 0;
-    while ((1 << order) * PGSIZE < size)
-      order++;
-    buddysystem_free(pa, order);
-  }
+  int order = 0;
+  while ((1 << order) * UNIT_SIZE < size)
+    order++;
+  buddysystem_free(pa, order);
 }
