@@ -267,14 +267,20 @@ uvmalloc_malloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
 
   oldsz = PGROUNDUP(oldsz);
   for(a = oldsz; a < newsz; a += PGSIZE){
-    mem = (char *)malloc(PGSIZE);
+    uint64 malloc_size;
+    if (PGSIZE < newsz - a) {
+      malloc_size = PGSIZE;
+    } else {
+      malloc_size = newsz - a;
+    }
+    mem = (char *)malloc(malloc_size);
     if(mem == 0){
       uvmdealloc(pagetable, a, oldsz);
       return 0;
     }
-    memset(mem, 0, PGSIZE);
+    memset(mem, 0, malloc_size);
     if(mappages(pagetable, a, PGSIZE, (uint64)mem, PTE_R|PTE_U|xperm) != 0){
-      mfree(mem, PGSIZE);
+      mfree(mem, malloc_size);
       uvmdealloc(pagetable, a, oldsz);
       return 0;
     }
