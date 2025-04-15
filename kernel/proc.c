@@ -56,6 +56,12 @@ procinit(void)
       p->state = UNUSED;
       p->kstack = KSTACK((int) (p - proc));
       p->priority = UNUSED_PRIORITY;
+      for (int i = 0; i < MAX_SHARED_PAGES; i++) {
+          p->shared_pages[i].pa = 0;
+          p->shared_pages[i].va = 0;
+          p->shared_pages[i].ref_count = 0;
+          initlock(&p->shared_pages[i].lock, "shared_page");
+      }
   }
 }
 

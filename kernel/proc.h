@@ -81,6 +81,20 @@ struct trapframe {
 
 enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
+
+// 中间级别的优先级
+#define UNUSED_PRIORITY 0
+#define MID_PRIORITY 10
+// 最大共享页数量
+#define MAX_SHARED_PAGES 4
+
+struct shared_page {
+  uint64 pa; // 物理地址
+  uint64 va; // 虚拟地址
+  int ref_count; // 引用计数
+  struct spinlock lock; // 锁
+};
+
 // Per-process state
 struct proc {
   struct spinlock lock;
@@ -108,8 +122,7 @@ struct proc {
   // 优先级
   // 0 表示进程不被使用 1 表示最高优先级
   int priority;
-};
 
-// 中间级别的优先级
-#define UNUSED_PRIORITY 0
-#define MID_PRIORITY 10
+  // 共享内存页
+  struct shared_page shared_pages[MAX_SHARED_PAGES];
+};

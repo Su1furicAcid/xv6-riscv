@@ -118,3 +118,59 @@ sys_getprocnum(void)
   // TODO: 实现获取进程数量的系统调用
   return getprocnum();
 }
+
+// 创建共享内存页
+uint64
+sys_shm_create(void)
+{
+  struct proc *p = myproc();
+  uint64 size;
+
+  argaddr(0, &size);
+
+  if (size > PGSIZE) // 限制共享页大小为 1 页
+    return -1;
+
+  for (int i = 0; i < MAX_SHARED_PAGES; i++) {
+    if (p->shared_pages[i].pa == 0) {
+      char *pa = kalloc(); // 分配物理页
+      if (pa == 0)
+        return -1;
+
+      memset(pa, 0, PGSIZE);
+      p->shared_pages[i].pa = (uint64)pa;
+      p->shared_pages[i].va = TRAPFRAME - (i + 1) * PGSIZE; // 映射到 trapframe 下方
+      p->shared_pages[i].ref_count = 1;
+
+      if (mappages(p->pagetable, p->shared_pages[i].va, PGSIZE, (uint64)pa, PTE_R | PTE_W | PTE_U) < 0) {
+        kfree(pa);
+        p->shared_pages[i].pa = 0;
+        p->shared_pages[i].va = 0;
+        p->shared_pages[i].ref_count = 0;
+        return -1;
+      }
+
+      return p->shared_pages[i].va; // 返回虚拟地址
+    }
+  }
+
+  return -1; // 没有空闲的共享页槽位
+}
+
+// 附加共享内存页
+uint64
+sys_shm_attach(void)
+{
+  struct proc *p = myproc();
+  uint64 va;
+  argaddr(0, &va);
+
+  for (int i = 0; i < MAX_SHARED_PAGES; i++) {
+    if (p->shared_pages[i].pa != 0 && p->shared_pages[i].va == va) {
+      p->shared_pages[i].ref_count++;
+      return va;
+    }
+  }
+
+  return -1; // 没有找到对应的共享页
+}
