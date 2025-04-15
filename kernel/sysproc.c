@@ -202,7 +202,7 @@ sys_shm_attach(void)
 
 // 释放给定的共享内存页
 void
-release_shared_page(uint64 va)
+sys_shm_release(uint64 va)
 {
   struct proc *p = myproc();
 
