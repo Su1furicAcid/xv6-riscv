@@ -111,6 +111,8 @@ void            procdump(void);
 int             getprocnum(void);
 // mygrowproc
 int             mygrowproc(int);
+void            setpriority(int, int);
+int             getpriority(int);
 
 // swtch.S
 void            swtch(struct context*, struct context*);

@@ -145,6 +145,7 @@ UPROGS=\
 	$U/_test_mysbrk\
 	$U/_demo_priority\
 	$U/_demo_shm\
+	$U/_demo_change_priority\
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)

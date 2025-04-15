@@ -62,6 +62,10 @@ procinit(void)
           p->shared_pages[i].ref_count = 0;
           initlock(&p->shared_pages[i].lock, "shared_page");
       }
+      p->create_time = 0;
+      p->ready_time = 0;
+      p->run_time = 0;
+      p->finish_time = 0;
   }
 }
 
@@ -132,6 +136,7 @@ found:
   p->pid = allocpid();
   p->state = USED;
   p->priority = MID_PRIORITY;
+  p->create_time = ticks;
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -358,6 +363,7 @@ fork(void)
 
   acquire(&np->lock);
   np->state = RUNNABLE;
+  np->ready_time = ticks;
   release(&np->lock);
 
   return pid;
@@ -415,6 +421,8 @@ exit(int status)
 
   p->xstate = status;
   p->state = ZOMBIE;
+  p->finish_time = ticks;
+  p->priority = UNUSED_PRIORITY;
 
   release(&wait_lock);
 
@@ -446,6 +454,10 @@ wait(uint64 addr)
         if(pp->state == ZOMBIE){
           // Found one.
           pid = pp->pid;
+          printf("******************************************\n");
+          printf("pid: %d create_time: %d ready_time: %d run_time: %d finish_time: %d current_time: %d\n",
+                 pid, pp->create_time, pp->ready_time, pp->run_time, pp->finish_time, ticks);
+          printf("******************************************\n");
           if(addr != 0 && copyout(p->pagetable, addr, (char *)&pp->xstate,
                                   sizeof(pp->xstate)) < 0) {
             release(&pp->lock);
@@ -497,8 +509,9 @@ scheduler(void)
       acquire(&p->lock);
       if(p->state == RUNNABLE) {
         if(highest_priority_proc == 0 || p->priority < highest_priority_proc->priority) {
-          if(highest_priority_proc)
+          if (highest_priority_proc) {
             release(&highest_priority_proc->lock);
+          }
           highest_priority_proc = p;
         } else {
           release(&p->lock);
@@ -512,9 +525,13 @@ scheduler(void)
     if(highest_priority_proc) {
       highest_priority_proc->state = RUNNING;
       c->proc = highest_priority_proc;
+      highest_priority_proc->run_time = ticks;
       swtch(&c->context, &highest_priority_proc->context);
       c->proc = 0;
       release(&highest_priority_proc->lock);
+    } else {
+      // 如果没有可运行的进程，进入低功耗模式
+      asm volatile("wfi");
     }
   }
 }
@@ -744,6 +761,43 @@ int getprocnum(void) {
       count++;
     }
   }
+
+  // 输出所有进程的信息
+  for(p = proc; p < &proc[NPROC]; p++) {
+    if(p->state != UNUSED) {
+      printf("pid: %d name: %s state: %s priority: %d\n",
+             p->pid, p->name, (p->state == RUNNING) ? "RUNNING" : (p->state == SLEEPING) ? "SLEEPING" : "RUNNABLE", p->priority);
+    }
+  }
+
   release(&wait_lock);
   return count;
+}
+
+void setpriority(int priority, int pid) {
+  struct proc *p;
+
+  acquire(&wait_lock);
+  for(p = proc; p < &proc[NPROC]; p++) {
+    if(p->pid == pid) {
+      p->priority = priority;
+      break;
+    }
+  }
+  release(&wait_lock);
+}
+
+int getpriority(int pid) {
+  struct proc *p;
+  int priority = 0;
+
+  acquire(&wait_lock);
+  for(p = proc; p < &proc[NPROC]; p++) {
+    if(p->pid == pid) {
+      priority = p->priority;
+      break;
+    }
+  }
+  release(&wait_lock);
+  return priority;
 }

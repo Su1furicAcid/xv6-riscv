@@ -84,6 +84,8 @@ enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
 // 中间级别的优先级
 #define UNUSED_PRIORITY 0
+#define HIGHEST_PRIORITY 1
+#define LOWEST_PRIORITY 20
 #define MID_PRIORITY 10
 // 最大共享页数量
 #define MAX_SHARED_PAGES 4
@@ -122,6 +124,11 @@ struct proc {
   // 优先级
   // 0 表示进程不被使用 1 表示最高优先级
   int priority;
+  // 运行时间记录
+  int create_time;
+  int ready_time;
+  int run_time;
+  int finish_time;
 
   // 共享内存页
   struct shared_page shared_pages[MAX_SHARED_PAGES];
