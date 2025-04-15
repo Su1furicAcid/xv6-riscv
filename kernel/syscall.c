@@ -104,6 +104,11 @@ extern uint64 sys_close(void);
 extern uint64 sys_getprocnum(void);
 extern uint64 sys_demo_allocator(void);
 extern uint64 sys_mysbrk(void);
+extern uint64 sys_setpriority(void);
+extern uint64 sys_getpriority(void);
+extern uint64 sys_shm_create(void);
+extern uint64 sys_shm_attach(void);
+extern uint64 sys_shm_release(void);
 
 // An array mapping syscall numbers from syscall.h
 // to the function that handles the system call.
@@ -131,7 +136,12 @@ static uint64 (*syscalls[])(void) = {
 [SYS_close]   sys_close,
 [SYS_getprocnum] sys_getprocnum,
 [SYS_demo_allocator] sys_demo_allocator,
-[SYS_mysbrk] sys_mysbrk
+[SYS_mysbrk] sys_mysbrk,
+[SYS_setpriority] sys_setpriority,
+[SYS_getpriority] sys_getpriority,
+[SYS_shm_create] sys_shm_create,
+[SYS_shm_attach] sys_shm_attach,
+[SYS_shm_release] sys_shm_release
 };
 
 void

@@ -39,3 +39,8 @@ entry("uptime");
 entry("getprocnum");
 entry("demo_allocator");
 entry("mysbrk");
+entry("setpriority");
+entry("getpriority");
+entry("shm_create");
+entry("shm_attach");
+entry("shm_release");

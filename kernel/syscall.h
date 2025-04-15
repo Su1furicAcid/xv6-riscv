@@ -26,3 +26,13 @@
 #define SYS_demo_allocator 23
 // 系统调用：我的sbrk
 #define SYS_mysbrk 24
+// 系统调用：设置进程优先级
+#define SYS_setpriority 25
+// 系统调用：获取进程优先级
+#define SYS_getpriority 26
+// 系统调用：创建共享内存页
+#define SYS_shm_create 27
+// 系统调用：附加共享内存页
+#define SYS_shm_attach 28
+// 系统调用：释放共享内存页
+#define SYS_shm_release 29

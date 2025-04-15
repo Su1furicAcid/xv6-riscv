@@ -27,6 +27,13 @@ int getprocnum(void);
 // 演示分配器
 void demo_allocator(void);
 uint64 mysbrk(int);
+// 进程优先级
+int setpriority(int);
+int getpriority(void);
+// 共享内存页
+int shm_create(int);
+int shm_attach(int);
+int shm_release(int);
 
 // ulib.c
 int stat(const char*, struct stat*);

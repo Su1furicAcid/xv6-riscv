@@ -199,3 +199,23 @@ sys_shm_attach(void)
 
   return -1; // 没有找到对应的共享页
 }
+
+// 释放给定的共享内存页
+void
+release_shared_page(uint64 va)
+{
+  struct proc *p = myproc();
+
+  for (int i = 0; i < MAX_SHARED_PAGES; i++) {
+    if (p->shared_pages[i].va == va) {
+      if (--p->shared_pages[i].ref_count == 0) {
+        uvmunmap(p->pagetable, p->shared_pages[i].va, 1, 1);
+        kfree((void *)p->shared_pages[i].pa);
+      }
+      p->shared_pages[i].pa = 0;
+      p->shared_pages[i].va = 0;
+      p->shared_pages[i].ref_count = 0;
+      break;
+    }
+  }
+}
