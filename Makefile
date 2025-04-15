@@ -143,6 +143,8 @@ UPROGS=\
 	$U/_gpcn_test\
 	$U/_demo_alloc\
 	$U/_test_mysbrk\
+	$U/_demo_priority\
+	$U/_demo_shm\
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)
