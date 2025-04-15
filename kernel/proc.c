@@ -454,10 +454,6 @@ wait(uint64 addr)
         if(pp->state == ZOMBIE){
           // Found one.
           pid = pp->pid;
-          printf("******************************************\n");
-          printf("pid: %d create_time: %d ready_time: %d run_time: %d finish_time: %d current_time: %d\n",
-                 pid, pp->create_time, pp->ready_time, pp->run_time, pp->finish_time, ticks);
-          printf("******************************************\n");
           if(addr != 0 && copyout(p->pagetable, addr, (char *)&pp->xstate,
                                   sizeof(pp->xstate)) < 0) {
             release(&pp->lock);
@@ -500,7 +496,7 @@ scheduler(void)
 
   c->proc = 0;
   for(;;){
-    intr_on();
+    intr_on(); // 开启中断
 
     highest_priority_proc = 0;
 
@@ -525,8 +521,14 @@ scheduler(void)
     if(highest_priority_proc) {
       highest_priority_proc->state = RUNNING;
       c->proc = highest_priority_proc;
+
+      // 更新运行时间
       highest_priority_proc->run_time = ticks;
+
+      // 切换到该进程
       swtch(&c->context, &highest_priority_proc->context);
+
+      // 进程运行结束后，恢复调度器状态
       c->proc = 0;
       release(&highest_priority_proc->lock);
     } else {
@@ -780,7 +782,9 @@ void setpriority(int priority, int pid) {
   acquire(&wait_lock);
   for(p = proc; p < &proc[NPROC]; p++) {
     if(p->pid == pid) {
+      acquire(&p->lock);
       p->priority = priority;
+      release(&p->lock);
       break;
     }
   }

@@ -143,9 +143,9 @@ UPROGS=\
 	$U/_gpcn_test\
 	$U/_demo_alloc\
 	$U/_test_mysbrk\
-	$U/_demo_nofork\
+	$U/_nousefork\
 	$U/_demo_shm\
-	$U/_demo_cg_pri\
+	$U/_set_priority\
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)
