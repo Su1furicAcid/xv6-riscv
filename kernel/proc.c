@@ -178,6 +178,18 @@ freeproc(struct proc *p)
   p->xstate = 0;
   p->state = UNUSED;
   p->priority = UNUSED_PRIORITY;
+  for (int i = 0; i < MAX_SHARED_PAGES; i++) {
+    if (p->shared_pages[i].pa != 0) {
+      if (--p->shared_pages[i].ref_count == 0) {
+        uvmunmap(p->pagetable, p->shared_pages[i].va, 1, 1);
+        kfree((void *)p->shared_pages[i].pa);
+      }
+      p->shared_pages[i].pa = 0;
+      p->shared_pages[i].va = 0;
+      p->shared_pages[i].ref_count = 0;
+      p->shared_pages[i].lock = (struct spinlock){0};
+    }
+  }
 }
 
 // Create a user page table for a given process, with no user memory,

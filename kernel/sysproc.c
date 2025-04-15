@@ -119,6 +119,31 @@ sys_getprocnum(void)
   return getprocnum();
 }
 
+// 设置进程优先级
+uint64
+sys_setpriority(void)
+{
+  int priority;
+  argint(0, &priority);
+  if(priority <= 0)
+    return -1;
+
+  struct proc *p = myproc();
+  acquire(&p->lock);
+  p->priority = priority;
+  release(&p->lock);
+
+  return 0;
+}
+
+// 获取优先级
+uint64
+sys_getpriority(void)
+{
+  struct proc *p = myproc();
+  return p->priority;
+}
+
 // 创建共享内存页
 uint64
 sys_shm_create(void)
