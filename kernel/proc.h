@@ -104,4 +104,12 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+
+  // 优先级
+  // 0 表示进程不被使用 1 表示最高优先级
+  int priority;
 };
+
+// 中间级别的优先级
+#define UNUSED_PRIORITY 0
+#define MID_PRIORITY 10

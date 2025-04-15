@@ -55,6 +55,7 @@ procinit(void)
       initlock(&p->lock, "proc");
       p->state = UNUSED;
       p->kstack = KSTACK((int) (p - proc));
+      p->priority = UNUSED_PRIORITY;
   }
 }
 
@@ -124,6 +125,7 @@ allocproc(void)
 found:
   p->pid = allocpid();
   p->state = USED;
+  p->priority = MID_PRIORITY;
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -169,6 +171,7 @@ freeproc(struct proc *p)
   p->killed = 0;
   p->xstate = 0;
   p->state = UNUSED;
+  p->priority = UNUSED_PRIORITY;
 }
 
 // Create a user page table for a given process, with no user memory,
@@ -462,37 +465,38 @@ void
 scheduler(void)
 {
   struct proc *p;
+  struct proc *highest_priority_proc;
   struct cpu *c = mycpu();
 
   c->proc = 0;
   for(;;){
-    // The most recent process to run may have had interrupts
-    // turned off; enable them to avoid a deadlock if all
-    // processes are waiting.
     intr_on();
 
-    int found = 0;
+    highest_priority_proc = 0;
+
+    // 遍历进程表，找到优先级最高的可运行进程
     for(p = proc; p < &proc[NPROC]; p++) {
       acquire(&p->lock);
       if(p->state == RUNNABLE) {
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-        p->state = RUNNING;
-        c->proc = p;
-        swtch(&c->context, &p->context);
-
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
-        found = 1;
+        if(highest_priority_proc == 0 || p->priority < highest_priority_proc->priority) {
+          if(highest_priority_proc)
+            release(&highest_priority_proc->lock);
+          highest_priority_proc = p;
+        } else {
+          release(&p->lock);
+        }
+      } else {
+        release(&p->lock);
       }
-      release(&p->lock);
     }
-    if(found == 0) {
-      // nothing to run; stop running on this core until an interrupt.
-      intr_on();
-      asm volatile("wfi");
+
+    // 如果找到可运行的进程，切换到该进程
+    if(highest_priority_proc) {
+      highest_priority_proc->state = RUNNING;
+      c->proc = highest_priority_proc;
+      swtch(&c->context, &highest_priority_proc->context);
+      c->proc = 0;
+      release(&highest_priority_proc->lock);
     }
   }
 }
