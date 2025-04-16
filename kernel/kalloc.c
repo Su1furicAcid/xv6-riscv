@@ -191,11 +191,6 @@ void buddysystem_init(void* start, void* end) {
   for (; p + PGSIZE <= (char*)end; p += PGSIZE) {
     buddysystem_free(p, 6);
   }
-
-  for (int i = 0; i < MAX_ORDER; i++) {
-    // initialize the free list using NULL
-    printf("Buddy system free list[%d]: %p\n", i, buddy_system.freelist[i]);
-  }
 }
 
 // implement kmalloc and kmfree using buddy system
