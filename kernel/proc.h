@@ -88,8 +88,8 @@ enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 #define LOWEST_PRIORITY 20
 #define MID_PRIORITY 10
 #define PRIORITY_LEVELS 21
-// 最大共享页数量
-#define MAX_SHARED_PAGES 4
+// 最大共享段数量
+#define MAX_SHARED_SEGMENTS 10
 
 struct shared_page {
   uint64 pa; // 物理地址
@@ -130,7 +130,4 @@ struct proc {
   int ready_time;
   int run_time;
   int finish_time;
-
-  // 共享内存页
-  struct shared_page shared_pages[MAX_SHARED_PAGES];
 };

@@ -3,7 +3,7 @@
 #include "user/user.h"
 
 int main() {
-    for (int i = 0; i < 2; i++) { // 创建两个子进程
+    for (int i = 0; i < 4; i++) { // 创建四个子进程
         int pid = fork();
 
         if (pid < 0) {

@@ -113,6 +113,11 @@ int             getprocnum(void);
 int             mygrowproc(int);
 void            setpriority(int, int);
 int             getpriority(int);
+int             shmget(int);
+int             shmcreate(int, int);
+int             shmat(int, uint64);
+int             shmdt(uint64);
+int             shmrel(int);
 
 // swtch.S
 void            swtch(struct context*, struct context*);

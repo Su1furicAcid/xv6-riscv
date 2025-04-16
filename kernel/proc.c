@@ -64,6 +64,32 @@ dequeue(int priority)
   return p;
 }
 
+// 共享内存段信息
+struct shm_entry {
+  int key;           // 唯一标识符
+  uint64 start_pa;   // 起始物理地址
+  uint64 end_pa;     // 结束物理地址
+  int size;          // 大小（以字节为单位）
+  int ref_count;     // 引用计数
+  int shmid;          // 共享内存段 ID
+};
+
+struct shm_entry shm_table[MAX_SHARED_SEGMENTS]; // 全局共享内存表
+struct spinlock shm_lock;  // 保护共享内存表的锁 
+
+// 初始化共享内存表
+void init_shm_table(void) {
+  initlock(&shm_lock, "shm_lock");
+  for (int i = 0; i < MAX_SHARED_SEGMENTS; i++) {
+    shm_table[i].key = -1; // 初始化为无效状态
+    shm_table[i].start_pa = 0;
+    shm_table[i].end_pa = 0;
+    shm_table[i].size = 0;
+    shm_table[i].ref_count = 0;
+    shm_table[i].shmid = -1; // 初始化为无效状态
+  }
+}
+
 struct proc *initproc;
 
 int nextpid = 1;
@@ -110,12 +136,6 @@ procinit(void)
       p->state = UNUSED;
       p->kstack = KSTACK((int) (p - proc));
       p->priority = UNUSED_PRIORITY;
-      for (int i = 0; i < MAX_SHARED_PAGES; i++) {
-          p->shared_pages[i].pa = 0;
-          p->shared_pages[i].va = 0;
-          p->shared_pages[i].ref_count = 0;
-          initlock(&p->shared_pages[i].lock, "shared_page");
-      }
       p->create_time = 0;
       p->ready_time = 0;
       p->run_time = 0;
@@ -238,18 +258,6 @@ freeproc(struct proc *p)
   p->xstate = 0;
   p->state = UNUSED;
   p->priority = UNUSED_PRIORITY;
-  for (int i = 0; i < MAX_SHARED_PAGES; i++) {
-    if (p->shared_pages[i].pa != 0) {
-      if (--p->shared_pages[i].ref_count == 0) {
-        uvmunmap(p->pagetable, p->shared_pages[i].va, 1, 1);
-        kfree((void *)p->shared_pages[i].pa);
-      }
-      p->shared_pages[i].pa = 0;
-      p->shared_pages[i].va = 0;
-      p->shared_pages[i].ref_count = 0;
-      p->shared_pages[i].lock = (struct spinlock){0};
-    }
-  }
 }
 
 // Create a user page table for a given process, with no user memory,
@@ -850,4 +858,137 @@ int getpriority(int pid) {
   }
   release(&wait_lock);
   return priority;
+}
+
+int
+shmget(int key) {
+  acquire(&shm_lock);
+  for (int i = 0; i < MAX_SHARED_SEGMENTS; i++) {
+    if (shm_table[i].key == key) {
+      // 找到已有的共享内存段
+      shm_table[i].ref_count++;
+      release(&shm_lock);
+      return shm_table[i].shmid;
+    }
+  }
+  // 没有找到共享内存段
+  release(&shm_lock);
+  return -1;
+}
+
+int
+shmcreate(int key, int size) {
+  acquire(&shm_lock);
+  for (int i = 0; i < MAX_SHARED_SEGMENTS; i++) {
+    if (shm_table[i].key == key) {
+      // 扩展现有的共享内存段大小
+      shm_table[i].size += size;
+      uint64 oldpa = shm_table[i].end_pa;
+      uint64 newpa = PGROUNDUP(oldpa + size);
+      uint64 a;
+      // 分配新的物理页
+      for (a = oldpa; a < newpa; a += PGSIZE) {
+        uint64 pa = kalloc();
+        if (pa == 0) {
+          release(&shm_lock);
+          return -1;
+        }
+      }
+      shm_table[i].end_pa = newpa;
+      shm_table[i].ref_count++;
+      release(&shm_lock);
+      return shm_table[i].shmid;
+    }
+  }
+  // 没有找到共享内存段，创建新的共享内存段
+  for (int i = 0; i < MAX_SHARED_SEGMENTS; i++) {
+    if (shm_table[i].key == -1) {
+      shm_table[i].key = key;
+      shm_table[i].size = size;
+      shm_table[i].ref_count = 1;
+      shm_table[i].shmid = i;
+      uint64 oldpa = kalloc();
+      uint64 newpa = PGROUNDUP(oldpa + size);
+      uint64 a;
+      for (a = oldpa; a < newpa; a += PGSIZE) {
+        uint64 pa = kalloc();
+        if (pa == 0) {
+          release(&shm_lock);
+          return -1;
+        }
+      }
+      shm_table[i].start_pa = oldpa;
+      shm_table[i].end_pa = newpa;
+      release(&shm_lock);
+      return shm_table[i].shmid;
+    }
+  }
+  // 没有找到空闲的共享内存段
+  release(&shm_lock);
+  return -1;
+}
+
+int
+shmat(int shmid, uint64 addr) {
+  acquire(&shm_lock);
+  for (int i = 0; i < MAX_SHARED_SEGMENTS; i++) {
+    if (shm_table[i].shmid == shmid) {
+      // 找到共享内存段
+      uint64 start_pa = shm_table[i].start_pa;
+      uint64 end_pa = shm_table[i].end_pa;
+      release(&shm_lock);
+      // 映射共享内存段到进程的地址空间
+      if (mappages(myproc()->pagetable, addr, end_pa - start_pa, start_pa, PTE_R | PTE_W) < 0) {
+        return -1;
+      }
+      return addr;
+    }
+  }
+  // 没有找到共享内存段
+  release(&shm_lock);
+  return -1;
+}
+
+int
+shmdt(uint64 addr) {
+  acquire(&shm_lock);
+  for (int i = 0; i < MAX_SHARED_SEGMENTS; i++) {
+    if (shm_table[i].start_pa == addr) {
+      // 找到共享内存段
+      uint64 start_pa = shm_table[i].start_pa;
+      uint64 end_pa = shm_table[i].end_pa;
+      release(&shm_lock);
+      // 解除映射
+      uvmunmap(myproc()->pagetable, addr, end_pa - start_pa, 1);
+      return 0;
+    }
+  }
+  // 没有找到共享内存段
+  release(&shm_lock);
+  return -1;
+}
+
+int
+shmrel(int shmid) {
+  acquire(&shm_lock);
+  for (int i = 0; i < MAX_SHARED_SEGMENTS; i++) {
+    if (shm_table[i].shmid == shmid) {
+      // 找到共享内存段
+      shm_table[i].ref_count--;
+      if (shm_table[i].ref_count == 0) {
+        // 如果引用计数为0，释放共享内存段
+        shm_table[i].key = -1;
+        shm_table[i].start_pa = 0;
+        shm_table[i].end_pa = 0;
+        shm_table[i].size = 0;
+        shm_table[i].ref_count = 0;
+        shm_table[i].shmid = -1;
+      }
+      release(&shm_lock);
+      return 0;
+    }
+  }
+  // 没有找到共享内存段
+  release(&shm_lock);
+  return -1;
 }
