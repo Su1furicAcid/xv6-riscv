@@ -2,40 +2,81 @@
 #include "kernel/stat.h"
 #include "user/user.h"
 
-int main() {
-  int pid;
-  uint64 shm_addr;
+#define SHM_KEY 1234
+#define SHM_SIZE 4096
 
-  // 父进程创建共享内存页
-  shm_addr = shm_create(4096);
-  if (shm_addr == -1) {
-    printf("Failed to create shared memory\n");
+void test_shared_memory() {
+  int shmid;
+  uint64 addr_int;
+  char *addr;
+
+  // 创建共享内存段
+  shmid = shmcreate(SHM_KEY, SHM_SIZE);
+  if (shmid < 0) {
+    printf("shmcreate failed\n");
     exit(1);
   }
-  printf("Parent created shared memory at address: 0x%p\n", (void *)shm_addr);
+  printf("shmcreate succeeded, shmid: %d\n", shmid);
 
-  pid = fork();
-  if (pid == 0) {
-    // 子进程
-    printf("Child attaching to shared memory at address: 0x%p\n", (void *)shm_addr);
-    if (shm_attach(shm_addr) == -1) {
-      printf("Child failed to attach to shared memory\n");
+  // 获取共享内存段
+  int shmid2 = shmget(SHM_KEY);
+  if (shmid2 != shmid) {
+    printf("shmget failed or returned incorrect shmid\n");
+    exit(1);
+  }
+  printf("shmget succeeded, shmid: %d\n", shmid2);
+
+  // 映射共享内存段
+  addr_int = shmat(shmid, 0);
+  if (addr_int == (uint64)-1) {
+    printf("shmat failed\n");
+    exit(1);
+  }
+  addr = (char *)addr_int;
+  printf("shmat succeeded, addr: %p\n", addr);
+
+  // 写入共享内存
+  strcpy(addr, "Hello, Shared Memory!");
+  printf("Written to shared memory: %s\n", addr);
+
+  // 在另一个进程中验证共享内存
+  if (fork() == 0) {
+    uint64 child_addr_int = shmat(shmid, 0);
+    if (child_addr_int == (uint64)-1) {
+      printf("Child: shmat failed\n");
       exit(1);
     }
+    char *child_addr = (char *)child_addr_int;
+    printf("Child: shmat succeeded, addr: %p\n", child_addr);
+    printf("Child: Read from shared memory: %s\n", child_addr);
 
-    char *shared_data = (char *)shm_addr;
-    printf("Child writing to shared memory\n");
-    shared_data[0] = 'H';
-    shared_data[1] = 'i';
-    shared_data[2] = '\0';
-
-    printf("Child exiting\n");
-    exit(0);
-  } else {
-    // 父进程
-    wait(0);
-    char *shared_data = (char *)shm_addr;
-    printf("Parent reading from shared memory: %s\n", shared_data);
+    // 解除映射
+    if (shmdt((uint64)child_addr) < 0) {
+      printf("Child: shmdt failed\n");
+      exit(1);
+    }
+    printf("Child: shmdt succeeded\n");
     exit(0);
   }
+
+  wait(0);
+
+  // 解除映射
+  if (shmdt((uint64)addr) < 0) {
+    printf("shmdt failed\n");
+    exit(1);
+  }
+  printf("shmdt succeeded\n");
+
+  // 释放共享内存段
+  if (shmrel(shmid) < 0) {
+    printf("shmrel failed\n");
+    exit(1);
+  }
+  printf("shmrel succeeded\n");
+}
+
+int main(int argc, char *argv[]) {
+  test_shared_memory();
+  exit(0);
 }
