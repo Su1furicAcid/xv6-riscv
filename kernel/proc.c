@@ -493,6 +493,7 @@ scheduler(void)
   struct proc *p;
   struct proc *highest_priority_proc;
   struct cpu *c = mycpu();
+  uint64 start_ticks;
 
   c->proc = 0;
   for(;;){
@@ -523,10 +524,13 @@ scheduler(void)
       c->proc = highest_priority_proc;
 
       // 更新运行时间
-      highest_priority_proc->run_time = ticks;
+
+      start_ticks = ticks;
 
       // 切换到该进程
       swtch(&c->context, &highest_priority_proc->context);
+
+      highest_priority_proc->run_time += ticks - start_ticks;
 
       // 进程运行结束后，恢复调度器状态
       c->proc = 0;
@@ -767,8 +771,8 @@ int getprocnum(void) {
   // 输出所有进程的信息
   for(p = proc; p < &proc[NPROC]; p++) {
     if(p->state != UNUSED) {
-      printf("pid: %d name: %s state: %s priority: %d\n",
-             p->pid, p->name, (p->state == RUNNING) ? "RUNNING" : (p->state == SLEEPING) ? "SLEEPING" : "RUNNABLE", p->priority);
+      printf("pid: %d name: %s state: %s priority: %d run_time: %d \n\n",
+             p->pid, p->name, (p->state == RUNNING) ? "RUNNING" : (p->state == SLEEPING) ? "SLEEPING" : "RUNNABLE", p->priority, p->run_time);
     }
   }
 
