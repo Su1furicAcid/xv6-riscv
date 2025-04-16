@@ -10,6 +10,60 @@ struct cpu cpus[NCPU];
 
 struct proc proc[NPROC];
 
+// 优先级队列
+// 不影响原有 proc 列表 仅仅是 proc 列表排序后的结果 仅在调度器中使用
+struct {
+  struct spinlock lock;
+  struct proc *queue[PRIORITY_LEVELS][NPROC]; // 每个优先级的队列; 1~20 是可用的
+  int head[PRIORITY_LEVELS]; // 队列头索引
+  int tail[PRIORITY_LEVELS]; // 队列尾索引
+} priority_queues;
+
+// 初始化优先级队列
+void
+init_priority_queues(void)
+{
+  initlock(&priority_queues.lock, "priority_queues");
+  for (int i = 1; i < PRIORITY_LEVELS; i++) {
+    priority_queues.head[i] = 0;
+    priority_queues.tail[i] = 0;
+    for (int j = 0; j < NPROC; j++) {
+      priority_queues.queue[i][j] = 0;
+    }
+  }
+}
+
+// 将进程加入优先级队列
+void
+enqueue(struct proc *p)
+{
+  int priority = p->priority;
+  acquire(&priority_queues.lock);
+  int tail = priority_queues.tail[priority];
+  priority_queues.queue[priority][tail] = p;
+  priority_queues.tail[priority] = (tail + 1) % NPROC;
+  // printf("Enqueue process %d with priority %d\n", p->pid, priority);
+  release(&priority_queues.lock);
+}
+
+// 从优先级队列中取出进程
+struct proc*
+dequeue(int priority)
+{
+  acquire(&priority_queues.lock);
+  int head = priority_queues.head[priority];
+  if (priority_queues.head[priority] == priority_queues.tail[priority]) {
+    // 队列为空
+    release(&priority_queues.lock);
+    return 0;
+  }
+  struct proc *p = priority_queues.queue[priority][head];
+  priority_queues.queue[priority][head] = 0;
+  priority_queues.head[priority] = (head + 1) % NPROC;
+  release(&priority_queues.lock);
+  return p;
+}
+
 struct proc *initproc;
 
 int nextpid = 1;
@@ -67,6 +121,7 @@ procinit(void)
       p->run_time = 0;
       p->finish_time = 0;
   }
+  init_priority_queues(); // 初始化优先级队列
 }
 
 // Must be called with interrupts disabled,
@@ -277,6 +332,8 @@ userinit(void)
 
   p->state = RUNNABLE;
 
+  enqueue(p); // 将进程加入优先级队列
+
   release(&p->lock);
 }
 
@@ -364,6 +421,7 @@ fork(void)
   acquire(&np->lock);
   np->state = RUNNABLE;
   np->ready_time = ticks;
+  enqueue(np); // 将进程加入优先级队列
   release(&np->lock);
 
   return pid;
@@ -491,7 +549,6 @@ void
 scheduler(void)
 {
   struct proc *p;
-  struct proc *highest_priority_proc;
   struct cpu *c = mycpu();
   uint64 start_ticks;
 
@@ -499,49 +556,32 @@ scheduler(void)
   for(;;){
     intr_on(); // 开启中断
 
-    highest_priority_proc = 0;
+    // 按优先级从高到低遍历队列
+    for (int i = 1; i < PRIORITY_LEVELS; i++) {
+      p = dequeue(i);
+      if (p) {
+        acquire(&p->lock);
+        if (p->state == RUNNABLE) {
+          // 切换到该进程
+          p->state = RUNNING;
+          c->proc = p;
 
-    // 遍历进程表，找到优先级最高的可运行进程
-    for(p = proc; p < &proc[NPROC]; p++) {
-      acquire(&p->lock);
-      if(p->state == RUNNABLE) {
-        if(highest_priority_proc == 0 || p->priority < highest_priority_proc->priority) {
-          if (highest_priority_proc) {
-            release(&highest_priority_proc->lock);
-          }
-          highest_priority_proc = p;
-        } else {
-          release(&p->lock);
+          start_ticks = ticks;
+          swtch(&c->context, &p->context);
+          p->run_time += ticks - start_ticks;
+
+          // 恢复调度器状态
+          c->proc = 0;
         }
-      } else {
         release(&p->lock);
+        break; // 运行一个进程后退出循环
       }
     }
 
-    // 如果找到可运行的进程，切换到该进程
-    if(highest_priority_proc) {
-      highest_priority_proc->state = RUNNING;
-      c->proc = highest_priority_proc;
-
-      // 更新运行时间
-
-      start_ticks = ticks;
-
-      // 切换到该进程
-      swtch(&c->context, &highest_priority_proc->context);
-
-      highest_priority_proc->run_time += ticks - start_ticks;
-
-      // 进程运行结束后，恢复调度器状态
-      c->proc = 0;
-      release(&highest_priority_proc->lock);
-    } else {
-      // 如果没有可运行的进程，进入低功耗模式
-      asm volatile("wfi");
-    }
+    // 如果没有可运行的进程，进入低功耗模式
+    asm volatile("wfi");
   }
 }
-
 // Switch to scheduler.  Must hold only p->lock
 // and have changed proc->state. Saves and restores
 // intena because intena is a property of this
@@ -576,6 +616,7 @@ yield(void)
   struct proc *p = myproc();
   acquire(&p->lock);
   p->state = RUNNABLE;
+  enqueue(p); // 将进程加入优先级队列
   sched();
   release(&p->lock);
 }
@@ -647,6 +688,7 @@ wakeup(void *chan)
       acquire(&p->lock);
       if(p->state == SLEEPING && p->chan == chan) {
         p->state = RUNNABLE;
+        enqueue(p);
       }
       release(&p->lock);
     }
