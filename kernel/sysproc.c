@@ -139,3 +139,45 @@ sys_getpriority(void)
   return getpriority(pid);
 }
 
+uint64
+sys_shmget(void)
+{
+  int key;
+  argint(0, &key);
+  return shmget(key);
+}
+
+uint64
+sys_shmcreate(void)
+{
+  int key, size;
+  argint(0, &key);
+  argint(1, &size);
+  return shmcreate(key, size);
+}
+
+uint64
+sys_shmat(void)
+{
+  int shmid;
+  uint64 addr;
+  argint(0, &shmid);
+  argaddr(1, &addr);
+  return shmat(shmid, addr);
+}
+
+uint64
+sys_shmdt(void)
+{
+  uint64 addr;
+  argaddr(0, &addr);
+  return shmdt(addr);
+}
+
+uint64
+sys_shmrel(void)
+{
+  int shmid;
+  argint(0, &shmid);
+  return shmrel(shmid);
+}

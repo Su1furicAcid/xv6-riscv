@@ -31,9 +31,11 @@ uint64 mysbrk(int);
 int setpriority(int, int);
 int getpriority(int);
 // 共享内存页
-int shm_create(int);
-int shm_attach(int);
-int shm_release(int);
+int shmget(int);
+int shmcreate(int, int);
+int shmat(int, uint64);
+int shmdt(uint64);
+int shmrel(int);
 
 // ulib.c
 int stat(const char*, struct stat*);

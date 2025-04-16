@@ -30,9 +30,8 @@
 #define SYS_setpriority 25
 // 系统调用：获取进程优先级
 #define SYS_getpriority 26
-// 系统调用：创建共享内存页
-#define SYS_shm_create 27
-// 系统调用：附加共享内存页
-#define SYS_shm_attach 28
-// 系统调用：释放共享内存页
-#define SYS_shm_release 29
+#define SYS_shmget 27
+#define SYS_shmcreate 28
+#define SYS_shmat 29
+#define SYS_shmdt 30
+#define SYS_shmrel 31
