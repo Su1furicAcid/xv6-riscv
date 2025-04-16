@@ -989,11 +989,24 @@ int
 shmdt(uint64 addr) {
   acquire(&shm_lock);
   for (int i = 0; i < MAX_SHARED_SEGMENTS; i++) {
-    if (shm_table[i].start_pa == addr) {
+    struct proc *p = myproc();
+    uint64 va_start = 0;
+
+    // 遍历进程的页表，找到与共享内存段对应的虚拟地址
+    for (uint64 va = 0; va < p->sz; va += PGSIZE) {
+      uint64 pa = walkaddr(p->pagetable, va);
+      if (pa == shm_table[i].start_pa) {
+        va_start = va;
+        break;
+      }
+    }
+
+    if (va_start == addr) {
       // 找到共享内存段
       uint64 start_pa = shm_table[i].start_pa;
       uint64 end_pa = shm_table[i].end_pa;
       release(&shm_lock);
+
       // 解除映射
       uvmunmap(myproc()->pagetable, addr, end_pa - start_pa, 1);
       return 0;
