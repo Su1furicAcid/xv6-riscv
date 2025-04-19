@@ -958,8 +958,7 @@ shmat(int shmid, uint64 addr) {
       // 如果用户没有提供地址，自动分配虚拟地址
       if (addr == 0) {
         struct proc *p = myproc();
-        addr = PGROUNDUP(p->sz); // 从进程当前的用户空间末尾开始分配
-        p->sz += size;           // 更新进程的用户空间大小
+        addr = TRAPFRAME - PGROUNDUP(size); // 将地址分配到 trapframe 下方
       }
 
       // 映射共享内存段到进程的地址空间
