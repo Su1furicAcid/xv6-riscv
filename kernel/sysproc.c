@@ -168,11 +168,3 @@ sys_shmdt(void)
   argaddr(0, &addr);
   return shmdt(addr);
 }
-
-uint64
-sys_shmrel(void)
-{
-  int shmid;
-  argint(0, &shmid);
-  return shmrel(shmid);
-}

@@ -34,7 +34,6 @@ int getpriority(int);
 int shmget(int, int, int);
 uint64 shmat(int, uint64);
 int shmdt(uint64);
-int shmrel(int);
 
 // ulib.c
 int stat(const char*, struct stat*);

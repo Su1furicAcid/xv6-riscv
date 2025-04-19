@@ -33,4 +33,3 @@
 #define SYS_shmget 27
 #define SYS_shmat 28
 #define SYS_shmdt 29
-#define SYS_shmrel 30

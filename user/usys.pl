@@ -44,4 +44,3 @@ entry("getpriority");
 entry("shmget");
 entry("shmat");
 entry("shmdt");
-entry("shmrel");

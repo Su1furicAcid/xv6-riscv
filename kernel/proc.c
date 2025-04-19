@@ -72,6 +72,7 @@ struct shm_entry {
   int size;          // 大小（以字节为单位）
   int ref_count;     // 引用计数
   int shmid;          // 共享内存段 ID
+  uint64 va;        // 映射的起始虚拟地址
 };
 
 struct shm_entry shm_table[MAX_SHARED_SEGMENTS]; // 全局共享内存表
@@ -967,6 +968,7 @@ shmat(int shmid, uint64 addr) {
       if (mappages(myproc()->pagetable, addr, size, start_pa, PTE_R | PTE_W | PTE_U) < 0) {
         return -1;
       }
+      shm_table[i].va = addr; // 保存映射的虚拟地址
       return addr;
     }
   }
@@ -976,44 +978,24 @@ shmat(int shmid, uint64 addr) {
 }
 
 int
-shmdt(uint64 addr) {
+shmdt(uint64 shmaddr) {
+  struct proc *p = myproc();
+  pagetable_t pagetable = p->pagetable;
+
   acquire(&shm_lock);
+
+  // 遍历共享内存表，找到与地址匹配的共享内存段
   for (int i = 0; i < MAX_SHARED_SEGMENTS; i++) {
-    struct proc *p = myproc();
-    uint64 va_start = 0;
-
-    // 遍历进程的页表，找到与共享内存段对应的虚拟地址
-    for (uint64 va = 0; va < p->sz; va += PGSIZE) {
-      uint64 pa = walkaddr(p->pagetable, va);
-      if (pa == shm_table[i].start_pa) {
-        va_start = va;
-        break;
-      }
-    }
-
-    if (va_start == addr) {
-      // 找到共享内存段
+    if (shm_table[i].va == shmaddr) {
+      // 找到匹配的共享内存段
       uint64 start_pa = shm_table[i].start_pa;
       uint64 end_pa = shm_table[i].end_pa;
-      release(&shm_lock);
+      uint64 size = end_pa - start_pa;
 
       // 解除映射
-      uvmunmap(myproc()->pagetable, addr, end_pa - start_pa, 1);
-      return 0;
-    }
-  }
-  // 没有找到共享内存段
-  release(&shm_lock);
-  return -1;
-}
-
-int
-shmrel(int shmid) {
-  acquire(&shm_lock);
-  for (int i = 0; i < MAX_SHARED_SEGMENTS; i++) {
-    if (shm_table[i].shmid == shmid) {
-      // 找到共享内存段
+      uvmunmap(pagetable, shmaddr, size / PGSIZE, 1);
       shm_table[i].ref_count--;
+
       if (shm_table[i].ref_count == 0) {
         // 如果引用计数为0，释放共享内存段
         shm_table[i].key = -1;
@@ -1023,11 +1005,12 @@ shmrel(int shmid) {
         shm_table[i].ref_count = 0;
         shm_table[i].shmid = -1;
       }
+
       release(&shm_lock);
-      return 0;
+      return 0; // 成功解除映射
     }
   }
-  // 没有找到共享内存段
+
   release(&shm_lock);
-  return -1;
+  return -1; // 未找到匹配的共享内存段
 }

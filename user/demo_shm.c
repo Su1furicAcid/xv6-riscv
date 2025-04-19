@@ -60,13 +60,6 @@ void test_shared_memory() {
     exit(1);
   }
   printf("shmdt succeeded\n");
-
-  // 释放共享内存段
-  if (shmrel(shmid) < 0) {
-    printf("shmrel failed\n");
-    exit(1);
-  }
-  printf("shmrel succeeded\n");
 }
 
 int main(int argc, char *argv[]) {
