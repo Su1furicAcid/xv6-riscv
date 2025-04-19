@@ -894,7 +894,6 @@ shmget(int key, int size, int flags) {
         shm_table[i].size = size;
       }
 
-      shm_table[i].ref_count++;
       release(&shm_lock);
       return shm_table[i].shmid;
     }
@@ -969,6 +968,7 @@ shmat(int shmid, uint64 addr) {
         return -1;
       }
       shm_table[i].va = addr; // 保存映射的虚拟地址
+      shm_table[i].ref_count++;
       return addr;
     }
   }
@@ -995,6 +995,7 @@ shmdt(uint64 shmaddr) {
       // 解除映射
       uvmunmap(pagetable, shmaddr, size / PGSIZE, 1);
       shm_table[i].ref_count--;
+      printf("shmdt: Unmapping shared memory segment %d\n", shm_table[i].shmid);
 
       if (shm_table[i].ref_count == 0) {
         // 如果引用计数为0，释放共享内存段
