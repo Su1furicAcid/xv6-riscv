@@ -31,7 +31,6 @@
 // 系统调用：获取进程优先级
 #define SYS_getpriority 26
 #define SYS_shmget 27
-#define SYS_shmcreate 28
-#define SYS_shmat 29
-#define SYS_shmdt 30
-#define SYS_shmrel 31
+#define SYS_shmat 28
+#define SYS_shmdt 29
+#define SYS_shmrel 30

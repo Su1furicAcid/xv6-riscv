@@ -42,7 +42,6 @@ entry("mysbrk");
 entry("setpriority");
 entry("getpriority");
 entry("shmget");
-entry("shmcreate");
 entry("shmat");
 entry("shmdt");
 entry("shmrel");

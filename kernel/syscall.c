@@ -107,7 +107,6 @@ extern uint64 sys_mysbrk(void);
 extern uint64 sys_setpriority(void);
 extern uint64 sys_getpriority(void);
 extern uint64 sys_shmget(void);
-extern uint64 sys_shmcreate(void);
 extern uint64 sys_shmat(void);
 extern uint64 sys_shmdt(void);
 extern uint64 sys_shmrel(void);
@@ -142,7 +141,6 @@ static uint64 (*syscalls[])(void) = {
 [SYS_setpriority] sys_setpriority,
 [SYS_getpriority] sys_getpriority,
 [SYS_shmget] sys_shmget,
-[SYS_shmcreate] sys_shmcreate,
 [SYS_shmat] sys_shmat,
 [SYS_shmdt] sys_shmdt,
 [SYS_shmrel] sys_shmrel

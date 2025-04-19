@@ -4,27 +4,20 @@
 
 #define SHM_KEY 1234
 #define SHM_SIZE 4096
+#define IPC_CREAT 0x0100 
 
 void test_shared_memory() {
   int shmid;
   uint64 addr_int;
   char *addr;
 
-  // 创建共享内存段
-  shmid = shmcreate(SHM_KEY, SHM_SIZE);
+  // 创建或获取共享内存段
+  shmid = shmget(SHM_KEY, SHM_SIZE, IPC_CREAT);
   if (shmid < 0) {
-    printf("shmcreate failed\n");
+    printf("shmget failed\n");
     exit(1);
   }
-  printf("shmcreate succeeded, shmid: %d\n", shmid);
-
-  // 获取共享内存段
-  int shmid2 = shmget(SHM_KEY);
-  if (shmid2 != shmid) {
-    printf("shmget failed or returned incorrect shmid\n");
-    exit(1);
-  }
-  printf("shmget succeeded, shmid: %d\n", shmid2);
+  printf("shmget succeeded, shmid: %d\n", shmid);
 
   // 映射共享内存段
   addr_int = shmat(shmid, 0);

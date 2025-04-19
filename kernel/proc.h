@@ -90,6 +90,7 @@ enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 #define PRIORITY_LEVELS 21
 // 最大共享段数量
 #define MAX_SHARED_SEGMENTS 10
+#define IPC_CREAT 0x0100
 
 struct shared_page {
   uint64 pa; // 物理地址

@@ -143,17 +143,12 @@ uint64
 sys_shmget(void)
 {
   int key;
-  argint(0, &key);
-  return shmget(key);
-}
-
-uint64
-sys_shmcreate(void)
-{
-  int key, size;
+  int size;
+  int flags;
   argint(0, &key);
   argint(1, &size);
-  return shmcreate(key, size);
+  argint(2, &flags);
+  return shmget(key, size, flags);
 }
 
 uint64

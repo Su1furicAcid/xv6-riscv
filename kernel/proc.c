@@ -862,95 +862,84 @@ int getpriority(int pid) {
 }
 
 int
-shmget(int key) {
+shmget(int key, int size, int flags) {
   acquire(&shm_lock);
-  for (int i = 0; i < MAX_SHARED_SEGMENTS; i++) {
-    if (shm_table[i].key == key) {
-      // 找到已有的共享内存段
-      shm_table[i].ref_count++;
-      release(&shm_lock);
-      return shm_table[i].shmid;
-    }
-  }
-  // 没有找到共享内存段
-  release(&shm_lock);
-  return -1;
-}
 
-int
-shmcreate(int key, int size) {
-  acquire(&shm_lock);
-  
   // 检查是否已有共享内存段
   for (int i = 0; i < MAX_SHARED_SEGMENTS; i++) {
     if (shm_table[i].key == key) {
-      // 扩展现有的共享内存段大小
-      shm_table[i].size += size;
-      uint64 oldpa = shm_table[i].end_pa;
-      uint64 newpa = PGROUNDUP(oldpa + size);
-      uint64 a;
+      // 找到已有的共享内存段
+      if (flags & IPC_CREAT && size > shm_table[i].size) {
+        // 如果需要扩展大小
+        uint64 oldpa = shm_table[i].end_pa;
+        uint64 newpa = PGROUNDUP(oldpa + (size - shm_table[i].size));
+        uint64 a;
 
-      // 分配新的物理页
-      for (a = oldpa; a < newpa; a += PGSIZE) {
-        char *mem = kalloc();
-        if (mem == 0) {
-          // 分配失败，释放已分配的页
-          for (uint64 b = oldpa; b < a; b += PGSIZE) {
-            kfree((void *)b);
+        // 分配新的物理页
+        for (a = oldpa; a < newpa; a += PGSIZE) {
+          char *mem = kalloc();
+          if (mem == 0) {
+            // 分配失败，释放已分配的页
+            for (uint64 b = oldpa; b < a; b += PGSIZE) {
+              kfree((void *)b);
+            }
+            release(&shm_lock);
+            return -1;
           }
-          release(&shm_lock);
-          return -1;
+          memset(mem, 0, PGSIZE); // 清零分配的内存
         }
-        memset(mem, 0, PGSIZE); // 清零分配的内存
+
+        shm_table[i].end_pa = newpa;
+        shm_table[i].size = size;
       }
 
-      shm_table[i].end_pa = newpa;
       shm_table[i].ref_count++;
       release(&shm_lock);
       return shm_table[i].shmid;
     }
   }
 
-  // 创建新的共享内存段
-  printf("Creating new shared memory segment with key %d and size %d\n", key, size);
-  for (int i = 0; i < MAX_SHARED_SEGMENTS; i++) {
-    if (shm_table[i].key == -1) {
-      shm_table[i].key = key;
-      shm_table[i].size = size;
-      shm_table[i].ref_count = 1;
-      shm_table[i].shmid = i;
+  // 如果没有找到共享内存段且设置了 IPC_CREAT，则创建新的共享内存段
+  if (flags & IPC_CREAT) {
+    for (int i = 0; i < MAX_SHARED_SEGMENTS; i++) {
+      if (shm_table[i].key == -1) {
+        shm_table[i].key = key;
+        shm_table[i].size = size;
+        shm_table[i].ref_count = 1;
+        shm_table[i].shmid = i;
 
-      uint64 oldpa = PGROUNDUP((uint64)kalloc()); // 确保页对齐
-      if (oldpa == 0) {
-        release(&shm_lock);
-        return -1;
-      }
-
-      uint64 newpa = oldpa + PGROUNDUP(size);
-      uint64 a;
-
-      // 分配物理页
-      for (a = oldpa; a < newpa; a += PGSIZE) {
-        char *mem = kalloc();
-        if (mem == 0) {
-          // 分配失败，释放已分配的页
-          for (uint64 b = oldpa; b < a; b += PGSIZE) {
-            kfree((void *)b);
-          }
+        uint64 oldpa = PGROUNDUP((uint64)kalloc()); // 确保页对齐
+        if (oldpa == 0) {
           release(&shm_lock);
           return -1;
         }
-        memset(mem, 0, PGSIZE); // 清零分配的内存
-      }
 
-      shm_table[i].start_pa = oldpa;
-      shm_table[i].end_pa = newpa;
-      release(&shm_lock);
-      return shm_table[i].shmid;
+        uint64 newpa = oldpa + PGROUNDUP(size);
+        uint64 a;
+
+        // 分配物理页
+        for (a = oldpa; a < newpa; a += PGSIZE) {
+          char *mem = kalloc();
+          if (mem == 0) {
+            // 分配失败，释放已分配的页
+            for (uint64 b = oldpa; b < a; b += PGSIZE) {
+              kfree((void *)b);
+            }
+            release(&shm_lock);
+            return -1;
+          }
+          memset(mem, 0, PGSIZE); // 清零分配的内存
+        }
+
+        shm_table[i].start_pa = oldpa;
+        shm_table[i].end_pa = newpa;
+        release(&shm_lock);
+        return shm_table[i].shmid;
+      }
     }
   }
 
-  // 没有找到空闲的共享内存段
+  // 没有找到共享内存段且未设置 IPC_CREAT
   release(&shm_lock);
   return -1;
 }
