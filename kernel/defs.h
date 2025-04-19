@@ -114,7 +114,7 @@ int             mygrowproc(int);
 void            setpriority(int, int);
 int             getpriority(int);
 int             shmget(int, int, int);
-int             shmat(int, uint64);
+uint64          shmat(int, uint64);
 int             shmdt(uint64);
 int             shmrel(int);
 

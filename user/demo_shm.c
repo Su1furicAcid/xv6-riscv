@@ -26,7 +26,7 @@ void test_shared_memory() {
     exit(1);
   }
   addr = (char *)addr_int;
-  printf("shmat succeeded, addr: %p\n", addr);
+  printf("shmat succeeded, addr: %p\n", (char *)addr_int);
 
   // 写入共享内存
   strcpy(addr, "Hello, Shared Memory!");

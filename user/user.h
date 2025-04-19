@@ -32,7 +32,7 @@ int setpriority(int, int);
 int getpriority(int);
 // 共享内存页
 int shmget(int, int, int);
-int shmat(int, uint64);
+uint64 shmat(int, uint64);
 int shmdt(uint64);
 int shmrel(int);
 

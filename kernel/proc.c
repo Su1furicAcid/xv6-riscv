@@ -944,7 +944,7 @@ shmget(int key, int size, int flags) {
   return -1;
 }
 
-int
+uint64
 shmat(int shmid, uint64 addr) {
   acquire(&shm_lock);
   for (int i = 0; i < MAX_SHARED_SEGMENTS; i++) {
@@ -957,10 +957,12 @@ shmat(int shmid, uint64 addr) {
 
       // 如果用户没有提供地址，自动分配虚拟地址
       if (addr == 0) {
-        struct proc *p = myproc();
         addr = TRAPFRAME - PGROUNDUP(size); // 将地址分配到 trapframe 下方
+        printf("trapframe: %p\n", (char *)TRAPFRAME);
+        printf("Auto-allocated address: %p\n", (char *)addr);
       }
 
+      printf("Physical address: %p\n", (char *)start_pa);
       // 映射共享内存段到进程的地址空间
       if (mappages(myproc()->pagetable, addr, size, start_pa, PTE_R | PTE_W | PTE_U) < 0) {
         return -1;
