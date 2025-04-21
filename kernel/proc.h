@@ -92,11 +92,9 @@ enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 #define MAX_SHARED_SEGMENTS 10
 #define IPC_CREAT 0x0100
 
-struct shared_page {
-  uint64 pa; // 物理地址
-  uint64 va; // 虚拟地址
-  int ref_count; // 引用计数
-  struct spinlock lock; // 锁
+struct shm_mapping {
+  int shmid;         // 共享内存段 ID
+  uint64 va;         // 映射的虚拟地址
 };
 
 // Per-process state
@@ -131,4 +129,6 @@ struct proc {
   int ready_time;
   int run_time;
   int finish_time;
+  // 共享内存映射
+  struct shm_mapping shm_mappings[MAX_SHARED_SEGMENTS];
 };

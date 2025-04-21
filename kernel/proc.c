@@ -72,7 +72,6 @@ struct shm_entry {
   int size;          // 大小（以字节为单位）
   int ref_count;     // 引用计数
   int shmid;          // 共享内存段 ID
-  uint64 va;        // 映射的起始虚拟地址
 };
 
 struct shm_entry shm_table[MAX_SHARED_SEGMENTS]; // 全局共享内存表
@@ -943,26 +942,40 @@ shmget(int key, int size, int flags) {
 
 uint64
 shmat(int shmid, uint64 addr) {
+  struct proc *p = myproc();
   acquire(&shm_lock);
   for (int i = 0; i < MAX_SHARED_SEGMENTS; i++) {
     if (shm_table[i].shmid == shmid) {
-
       uint64 start_pa = shm_table[i].start_pa;
       uint64 end_pa = shm_table[i].end_pa;
       uint64 size = end_pa - start_pa;
       release(&shm_lock);
 
       if (addr == 0) {
-        addr = TRAPFRAME - PGROUNDUP(size);
-        printf("trapframe: %p\n", (char *)TRAPFRAME);
-        printf("Auto-allocated address: %p\n", (char *)addr);
+        // 自动分配地址 trapframe 下面
+        addr = TRAPFRAME;
+        for (int j = 0; j < MAX_SHARED_SEGMENTS; j++) {
+          if (p->shm_mappings[j].va != 0 && p->shm_mappings[j].va < addr && 
+              p->shm_mappings[j].va + PGROUNDUP(size) > addr) {
+            addr = p->shm_mappings[j].va - PGROUNDUP(size);
+          }
+        }
+        addr -= PGROUNDUP(size);
       }
 
-      // printf("Physical address: %p\n", (char *)start_pa);
-      if (mappages(myproc()->pagetable, addr, size, start_pa, PTE_R | PTE_W | PTE_U) < 0) {
+      if (mappages(p->pagetable, addr, size, start_pa, PTE_R | PTE_W | PTE_U) < 0) {
         return -1;
       }
-      shm_table[i].va = addr;
+
+      // 保存到当前进程的共享内存映射表
+      for (int j = 0; j < MAX_SHARED_SEGMENTS; j++) {
+        if (p->shm_mappings[j].va == 0) {
+          p->shm_mappings[j].shmid = shmid;
+          p->shm_mappings[j].va = addr;
+          break;
+        }
+      }
+
       shm_table[i].ref_count++;
       return addr;
     }
@@ -979,27 +992,43 @@ shmdt(uint64 shmaddr) {
 
   acquire(&shm_lock);
 
-  for (int i = 0; i < MAX_SHARED_SEGMENTS; i++) {
-    if (shm_table[i].va == shmaddr) {
-      uint64 start_pa = shm_table[i].start_pa;
-      uint64 end_pa = shm_table[i].end_pa;
-      uint64 size = end_pa - start_pa;
+  // 遍历当前进程的共享内存映射表
+  for (int j = 0; j < MAX_SHARED_SEGMENTS; j++) {
+    if (p->shm_mappings[j].va == shmaddr) {
+      int shmid = p->shm_mappings[j].shmid;
 
-      uvmunmap(pagetable, shmaddr, size / PGSIZE, 1);
-      shm_table[i].ref_count--;
-      // printf("shmdt: Unmapping shared memory segment %d\n", shm_table[i].shmid);
+      // 找到对应的共享内存段
+      for (int i = 0; i < MAX_SHARED_SEGMENTS; i++) {
+        if (shm_table[i].shmid == shmid) {
+          uint64 start_pa = shm_table[i].start_pa;
+          uint64 end_pa = shm_table[i].end_pa;
+          uint64 size = end_pa - start_pa;
 
-      if (shm_table[i].ref_count == 0) {
-        shm_table[i].key = -1;
-        shm_table[i].start_pa = 0;
-        shm_table[i].end_pa = 0;
-        shm_table[i].size = 0;
-        shm_table[i].ref_count = 0;
-        shm_table[i].shmid = -1;
+          // 解除映射
+          uvmunmap(pagetable, shmaddr, size / PGSIZE, 1);
+          shm_table[i].ref_count--;
+
+          // 从当前进程的共享内存映射表中移除
+          p->shm_mappings[j].shmid = -1;
+          p->shm_mappings[j].va = 0;
+
+          // 如果引用计数为 0，释放物理内存
+          if (shm_table[i].ref_count == 0) {
+            for (uint64 a = start_pa; a < end_pa; a += PGSIZE) {
+              kfree((void *)a);
+            }
+            shm_table[i].key = -1;
+            shm_table[i].start_pa = 0;
+            shm_table[i].end_pa = 0;
+            shm_table[i].size = 0;
+            shm_table[i].ref_count = 0;
+            shm_table[i].shmid = -1;
+          }
+
+          release(&shm_lock);
+          return 0;
+        }
       }
-
-      release(&shm_lock);
-      return 0;
     }
   }
 
