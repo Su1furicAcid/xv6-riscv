@@ -113,6 +113,7 @@ struct metadata_entry {
 
 struct metadata_manager {
   struct metadata_entry *entries; 
+  int entries_order;
   int capacity;                   
   int count;                      
   struct spinlock lock;        
@@ -125,12 +126,12 @@ void buddysystem_free(void *pa, int skip_metadata);
 
 void metadata_manager_init() {
   initlock(&meta_manager.lock, "meta_manager");
-
-  meta_manager.entries = (struct metadata_entry*)buddysystem_alloc(6, 1);
+  meta_manager.entries_order = 6;
+  meta_manager.entries = (struct metadata_entry*)buddysystem_alloc(meta_manager.entries_order, 1);
   if (!meta_manager.entries)
     panic("Failed to allocate metadata manager");
 
-  meta_manager.capacity = PGSIZE / sizeof(struct metadata_entry); 
+  meta_manager.capacity = (1 << meta_manager.entries_order << UNIT_SIZE_LOG2) / sizeof(struct metadata_entry);
   meta_manager.count = 0;
 }
 
@@ -139,15 +140,15 @@ void add_metadata(void *addr, int order) {
 
   if (meta_manager.count >= meta_manager.capacity) {
     release(&meta_manager.lock);
-
-    struct metadata_entry *new_entries = (struct metadata_entry*)buddysystem_alloc(6, 1);
+    meta_manager.entries_order++;
+    struct metadata_entry *new_entries = (struct metadata_entry*)buddysystem_alloc(meta_manager.entries_order, 1);
     if (!new_entries)
       panic("Failed to expand metadata manager");
 
     memmove(new_entries, meta_manager.entries, meta_manager.count * sizeof(struct metadata_entry));
     buddysystem_free(meta_manager.entries, 0);
     meta_manager.entries = new_entries;
-    meta_manager.capacity += PGSIZE / sizeof(struct metadata_entry);
+    meta_manager.capacity = (1 << meta_manager.entries_order << UNIT_SIZE_LOG2) / sizeof(struct metadata_entry);
   }
 
   meta_manager.entries[meta_manager.count].addr = addr;
