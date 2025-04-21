@@ -187,6 +187,7 @@ int             copyinstr(pagetable_t, char *, uint64, uint64);
 void            demo_allocator(void);
 // uvmalloc_malloc
 uint64          uvmalloc_malloc(pagetable_t, uint64, uint64, int);
+uint64          uvmdealloc_mfree(pagetable_t, uint64, uint64);
 
 // plic.c
 void            plicinit(void);

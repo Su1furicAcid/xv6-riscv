@@ -276,10 +276,35 @@ uvmalloc_malloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
     memset(mem, 0, PGSIZE);
     if(mappages(pagetable, a, PGSIZE, (uint64)mem, PTE_R|PTE_U|xperm) != 0){
       mfree(mem);
-      uvmdealloc(pagetable, a, oldsz);
+      uvmdealloc_mfree(pagetable, a, oldsz);
       return 0;
     }
   }
+  return newsz;
+}
+
+uint64
+uvmdealloc_mfree(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
+{
+  if (newsz >= oldsz)
+    return oldsz;
+
+  if (PGROUNDUP(newsz) < PGROUNDUP(oldsz)) {
+    uint64 a;
+    for (a = PGROUNDUP(newsz); a < PGROUNDUP(oldsz); a += PGSIZE) {
+      pte_t *pte = walk(pagetable, a, 0);
+      if (pte == 0)
+        panic("uvmdealloc_mfree: walk");
+      if ((*pte & PTE_V) == 0)
+        panic("uvmdealloc_mfree: not mapped");
+      uint64 pa = PTE2PA(*pte);
+      if (pa == 0)
+        panic("uvmdealloc_mfree: pa is 0");
+      mfree((void *)pa); // 使用 mfree 释放物理内存
+      *pte = 0;          // 清除 PTE
+    }
+  }
+
   return newsz;
 }
 

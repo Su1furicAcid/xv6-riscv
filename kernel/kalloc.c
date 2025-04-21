@@ -294,6 +294,10 @@ void buddysystem_init(void* start, void* end) {
 
 // implement kmalloc and kmfree using buddy system
 void* malloc(int size) {
+  if (size == 0) {
+    return 0;
+  }
+
   int order = 0;
 
   // 计算所需的最小 order，确保分配的内存块足够大

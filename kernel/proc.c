@@ -378,7 +378,7 @@ int mygrowproc(int n) {
       return -1;
     }
   } else if(n < 0){
-    sz = uvmdealloc(p->pagetable, sz, sz + n);
+    sz = uvmdealloc_mfree(p->pagetable, sz, sz + n);
   }
   p->sz = sz;
   return 0;
