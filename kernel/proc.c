@@ -866,28 +866,27 @@ int
 shmget(int key, int size, int flags) {
   acquire(&shm_lock);
 
-  // 检查是否已有共享内存段
+  // check if existing shared memory segment with the same key
   for (int i = 0; i < MAX_SHARED_SEGMENTS; i++) {
     if (shm_table[i].key == key) {
-      // 找到已有的共享内存段
+      // find it 
       if (flags & IPC_CREAT && size > shm_table[i].size) {
-        // 如果需要扩展大小
+        // extend size
         uint64 oldpa = shm_table[i].end_pa;
         uint64 newpa = PGROUNDUP(oldpa + (size - shm_table[i].size));
         uint64 a;
 
-        // 分配新的物理页
+        // allocate new pages
         for (a = oldpa; a < newpa; a += PGSIZE) {
           char *mem = kalloc();
           if (mem == 0) {
-            // 分配失败，释放已分配的页
             for (uint64 b = oldpa; b < a; b += PGSIZE) {
               kfree((void *)b);
             }
             release(&shm_lock);
             return -1;
           }
-          memset(mem, 0, PGSIZE); // 清零分配的内存
+          memset(mem, 0, PGSIZE);
         }
 
         shm_table[i].end_pa = newpa;
@@ -899,7 +898,7 @@ shmget(int key, int size, int flags) {
     }
   }
 
-  // 如果没有找到共享内存段且设置了 IPC_CREAT，则创建新的共享内存段
+  // create new shared memory segment
   if (flags & IPC_CREAT) {
     for (int i = 0; i < MAX_SHARED_SEGMENTS; i++) {
       if (shm_table[i].key == -1) {
@@ -908,7 +907,7 @@ shmget(int key, int size, int flags) {
         shm_table[i].ref_count = 1;
         shm_table[i].shmid = i;
 
-        uint64 oldpa = PGROUNDUP((uint64)kalloc()); // 确保页对齐
+        uint64 oldpa = PGROUNDUP((uint64)kalloc());
         if (oldpa == 0) {
           release(&shm_lock);
           return -1;
@@ -917,18 +916,17 @@ shmget(int key, int size, int flags) {
         uint64 newpa = oldpa + PGROUNDUP(size);
         uint64 a;
 
-        // 分配物理页
+        // allocate new pages
         for (a = oldpa; a < newpa; a += PGSIZE) {
           char *mem = kalloc();
           if (mem == 0) {
-            // 分配失败，释放已分配的页
             for (uint64 b = oldpa; b < a; b += PGSIZE) {
               kfree((void *)b);
             }
             release(&shm_lock);
             return -1;
           }
-          memset(mem, 0, PGSIZE); // 清零分配的内存
+          memset(mem, 0, PGSIZE);
         }
 
         shm_table[i].start_pa = oldpa;
@@ -939,7 +937,6 @@ shmget(int key, int size, int flags) {
     }
   }
 
-  // 没有找到共享内存段且未设置 IPC_CREAT
   release(&shm_lock);
   return -1;
 }
@@ -949,30 +946,28 @@ shmat(int shmid, uint64 addr) {
   acquire(&shm_lock);
   for (int i = 0; i < MAX_SHARED_SEGMENTS; i++) {
     if (shm_table[i].shmid == shmid) {
-      // 找到共享内存段
+
       uint64 start_pa = shm_table[i].start_pa;
       uint64 end_pa = shm_table[i].end_pa;
       uint64 size = end_pa - start_pa;
       release(&shm_lock);
 
-      // 如果用户没有提供地址，自动分配虚拟地址
       if (addr == 0) {
-        addr = TRAPFRAME - PGROUNDUP(size); // 将地址分配到 trapframe 下方
+        addr = TRAPFRAME - PGROUNDUP(size);
         printf("trapframe: %p\n", (char *)TRAPFRAME);
         printf("Auto-allocated address: %p\n", (char *)addr);
       }
 
-      printf("Physical address: %p\n", (char *)start_pa);
-      // 映射共享内存段到进程的地址空间
+      // printf("Physical address: %p\n", (char *)start_pa);
       if (mappages(myproc()->pagetable, addr, size, start_pa, PTE_R | PTE_W | PTE_U) < 0) {
         return -1;
       }
-      shm_table[i].va = addr; // 保存映射的虚拟地址
+      shm_table[i].va = addr;
       shm_table[i].ref_count++;
       return addr;
     }
   }
-  // 没有找到共享内存段
+
   release(&shm_lock);
   return -1;
 }
@@ -984,21 +979,17 @@ shmdt(uint64 shmaddr) {
 
   acquire(&shm_lock);
 
-  // 遍历共享内存表，找到与地址匹配的共享内存段
   for (int i = 0; i < MAX_SHARED_SEGMENTS; i++) {
     if (shm_table[i].va == shmaddr) {
-      // 找到匹配的共享内存段
       uint64 start_pa = shm_table[i].start_pa;
       uint64 end_pa = shm_table[i].end_pa;
       uint64 size = end_pa - start_pa;
 
-      // 解除映射
       uvmunmap(pagetable, shmaddr, size / PGSIZE, 1);
       shm_table[i].ref_count--;
-      printf("shmdt: Unmapping shared memory segment %d\n", shm_table[i].shmid);
+      // printf("shmdt: Unmapping shared memory segment %d\n", shm_table[i].shmid);
 
       if (shm_table[i].ref_count == 0) {
-        // 如果引用计数为0，释放共享内存段
         shm_table[i].key = -1;
         shm_table[i].start_pa = 0;
         shm_table[i].end_pa = 0;
@@ -1008,10 +999,10 @@ shmdt(uint64 shmaddr) {
       }
 
       release(&shm_lock);
-      return 0; // 成功解除映射
+      return 0;
     }
   }
 
   release(&shm_lock);
-  return -1; // 未找到匹配的共享内存段
+  return -1;
 }
