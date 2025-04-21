@@ -105,22 +105,31 @@ struct buddy {
 
 struct buddy buddy_system;
 
+// metadata for block after allocation
+struct header {
+  int order;
+};
+
 // free a page
-void buddysystem_free(void *pa, int order) {
+void buddysystem_free(void *pa) {
+  // 获取 header 的地址
+  struct header *hdr = (struct header*)((char*)pa - sizeof(struct header));
+  int order = hdr->order; // 从 header 中获取 order
+
   acquire(&buddy_system.lock);
 
-  // Try to merge with buddy blocks
+  // 尝试合并伙伴块
   while (order < MAX_ORDER - 1) {
-    uint64 buddy_pa = ((uint64)pa ^ (1 << (order + UNIT_SIZE_LOG2))); // Calculate buddy address
+    uint64 buddy_pa = ((uint64)hdr ^ (1 << (order + UNIT_SIZE_LOG2))); // 计算伙伴地址
     struct run *buddy = (struct run*)buddy_pa;
 
-    // Check if the buddy block is free and of the same order
+    // 检查伙伴块是否空闲并且阶数相同
     struct run **freelist = &buddy_system.freelist[order];
     struct run *prev = 0;
     struct run *curr = *freelist;
     while (curr) {
       if (curr == buddy) {
-        // Remove buddy from free list
+        // 从空闲链表中移除伙伴块
         if (prev)
           prev->next = curr->next;
         else
@@ -132,18 +141,19 @@ void buddysystem_free(void *pa, int order) {
     }
 
     if (!curr)
-      break; // Buddy block is not free, stop merging
+      break; // 伙伴块不可用，停止合并
 
-    // Merge with buddy block
-    if ((uint64)pa > buddy_pa)
-      pa = (void*)buddy_pa;
+    // 合并当前块和伙伴块
+    if ((uint64)hdr > buddy_pa)
+      hdr = (struct header*)buddy_pa;
     order++;
   }
 
-  // Add the merged block to the free list
-  struct run *r = (struct run*)pa;
+  // 将合并后的块加入空闲链表
+  struct run *r = (struct run*)hdr;
   r->next = buddy_system.freelist[order];
   buddy_system.freelist[order] = r;
+
   release(&buddy_system.lock);
 }
 
@@ -168,8 +178,12 @@ void* buddysystem_alloc(int order) {
         buddy_system.freelist[i] = buddy;
       }
 
+      // 在分配的块头部存储 header 信息
+      struct header *hdr = (struct header*)r;
+      hdr->order = order;
+
       release(&buddy_system.lock);
-      return (void*)r;
+      return (void*)((char*)r + sizeof(struct header)); // 返回用户数据区域
     }
   }
 
@@ -189,21 +203,23 @@ void buddysystem_init(void* start, void* end) {
 
   char* p = (char*)PGROUNDUP((uint64)start);
   for (; p + PGSIZE <= (char*)end; p += PGSIZE) {
-    buddysystem_free(p, 6);
+    // 设置 header 的 order 值
+    struct header *hdr = (struct header*)p;
+    hdr->order = 6; // 每个页块的大小为 4KB，对应 order = 6
+
+    // 将块释放到伙伴系统
+    buddysystem_free((void*)(p + sizeof(struct header)));
   }
 }
 
 // implement kmalloc and kmfree using buddy system
 void* malloc(int size) {
   int order = 0;
-  while ((1 << order) * UNIT_SIZE < size)
+  while ((1 << order) * UNIT_SIZE < size + sizeof(struct header)) // 包括 header 的大小
     order++;
   return buddysystem_alloc(order);
 }
 
-void mfree(void *pa, int size) {
-  int order = 0;
-  while ((1 << order) * UNIT_SIZE < size)
-    order++;
-  buddysystem_free(pa, order);
+void mfree(void *pa) {
+  buddysystem_free(pa);
 }

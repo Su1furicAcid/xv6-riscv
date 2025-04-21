@@ -275,7 +275,7 @@ uvmalloc_malloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
     }
     memset(mem, 0, PGSIZE);
     if(mappages(pagetable, a, PGSIZE, (uint64)mem, PTE_R|PTE_U|xperm) != 0){
-      mfree(mem, PGSIZE);
+      mfree(mem);
       uvmdealloc(pagetable, a, oldsz);
       return 0;
     }
@@ -284,16 +284,14 @@ uvmalloc_malloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
 }
 
 // 演示 demo
-void
-demo_allocator()
-{
+void demo_allocator() {
   printf("Testing zero-byte allocation...\n");
   void *zero_alloc = malloc(0);
   if (zero_alloc == 0) {
     printf("Correctly handled zero-byte allocation.\n");
   } else {
     printf("Error: Allocated memory for zero-byte request at address: %p\n", zero_alloc);
-    mfree(zero_alloc, 0);
+    mfree(zero_alloc);
   }
 
   printf("Testing non-aligned allocation...\n");
@@ -306,7 +304,7 @@ demo_allocator()
     } else {
       printf("Error: Memory allocated at address %p is not aligned.\n", non_aligned_alloc);
     }
-    mfree(non_aligned_alloc, 100);
+    mfree(non_aligned_alloc);
   }
 
   printf("Allocating small objects using malloc...\n");
@@ -318,7 +316,7 @@ demo_allocator()
 
   printf("Freeing some malloc objects...\n");
   for (int i = 0; i < 3; i++) {
-    mfree(malloc_objs[i], 64);
+    mfree(malloc_objs[i]);
     printf("Freed malloc object %d at address: %p\n", i, malloc_objs[i]);
   }
 
@@ -338,7 +336,7 @@ demo_allocator()
 
   printf("Freeing some malloc blocks...\n");
   for (int i = 0; i < 2; i++) {
-    mfree(malloc_blocks[i], sizes[i]);
+    mfree(malloc_blocks[i]);
     printf("Freed malloc block of size %d bytes at address: %p\n", sizes[i], malloc_blocks[i]);
   }
 
