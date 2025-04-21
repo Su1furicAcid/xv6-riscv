@@ -106,30 +106,117 @@ struct buddy {
 struct buddy buddy_system;
 
 // metadata for block after allocation
-struct header {
-  int order;
+struct metadata_entry {
+  void *addr;  // 内存块的起始地址
+  int order;   // 内存块的阶数
 };
 
+struct metadata_manager {
+  struct metadata_entry *entries; // 元数据数组
+  int capacity;                   // 元数据容量
+  int count;                      // 当前元数据条目数
+  struct spinlock lock;           // 保护元数据的锁
+};
+
+struct metadata_manager meta_manager;
+
+void* buddysystem_alloc(int order, int skip_metadata);
+void buddysystem_free(void *pa, int skip_metadata);
+
+void metadata_manager_init() {
+  initlock(&meta_manager.lock, "meta_manager");
+
+  // 使用伙伴系统分配一页用于存储元数据
+  meta_manager.entries = (struct metadata_entry*)buddysystem_alloc(6, 1); // 4KB
+  if (!meta_manager.entries)
+    panic("Failed to allocate metadata manager");
+
+  meta_manager.capacity = PGSIZE / sizeof(struct metadata_entry); // 每页的容量
+  meta_manager.count = 0;
+}
+
+void add_metadata(void *addr, int order) {
+  acquire(&meta_manager.lock);
+
+  if (meta_manager.count >= meta_manager.capacity) {
+    release(&meta_manager.lock);
+
+    // 如果元数据数组已满，分配新的页扩展容量
+    struct metadata_entry *new_entries = (struct metadata_entry*)buddysystem_alloc(6, 1); // 4KB
+    if (!new_entries)
+      panic("Failed to expand metadata manager");
+
+    // 拷贝旧数据到新数组
+    memmove(new_entries, meta_manager.entries, meta_manager.count * sizeof(struct metadata_entry));
+    buddysystem_free(meta_manager.entries, 0); // 释放旧数组
+    meta_manager.entries = new_entries;
+    meta_manager.capacity += PGSIZE / sizeof(struct metadata_entry);
+  }
+
+  meta_manager.entries[meta_manager.count].addr = addr;
+  meta_manager.entries[meta_manager.count].order = order;
+  meta_manager.count++;
+
+  release(&meta_manager.lock);
+}
+
+int find_metadata(void *addr) {
+  acquire(&meta_manager.lock);
+
+  for (int i = 0; i < meta_manager.count; i++) {
+    if (meta_manager.entries[i].addr == addr) {
+      int order = meta_manager.entries[i].order;
+      release(&meta_manager.lock);
+      return order;
+    }
+  }
+
+  release(&meta_manager.lock);
+  panic("Metadata not found for address");
+  return -1; // 不会到达这里
+}
+
+void delete_metadata(void *addr) {
+  acquire(&meta_manager.lock);
+
+  for (int i = 0; i < meta_manager.count; i++) {
+    if (meta_manager.entries[i].addr == addr) {
+      // 将最后一个条目移到当前条目位置，保持数组紧凑
+      meta_manager.entries[i] = meta_manager.entries[meta_manager.count - 1];
+      meta_manager.count--;
+      release(&meta_manager.lock);
+      return;
+    }
+  }
+
+  release(&meta_manager.lock);
+  panic("Metadata not found for address");
+}
+
 // free a page
-void buddysystem_free(void *pa) {
-  // 获取 header 的地址
-  struct header *hdr = (struct header*)((char*)pa - sizeof(struct header));
-  int order = hdr->order; // 从 header 中获取 order
+void buddysystem_free(void *pa, int skip_metadata) {
+  int order;
+
+  // 如果不跳过元数据，查找并删除元数据条目
+  if (!skip_metadata) {
+    order = find_metadata(pa);
+    delete_metadata(pa);
+  } else {
+    // 初始化时直接指定默认的 order（4KB 对应 order = 6）
+    order = 6;
+  }
 
   acquire(&buddy_system.lock);
 
-  // 尝试合并伙伴块
   while (order < MAX_ORDER - 1) {
-    uint64 buddy_pa = ((uint64)hdr ^ (1 << (order + UNIT_SIZE_LOG2))); // 计算伙伴地址
+    uint64 buddy_pa = ((uint64)pa ^ (1 << (order + UNIT_SIZE_LOG2)));
     struct run *buddy = (struct run*)buddy_pa;
 
-    // 检查伙伴块是否空闲并且阶数相同
     struct run **freelist = &buddy_system.freelist[order];
     struct run *prev = 0;
     struct run *curr = *freelist;
     while (curr) {
       if (curr == buddy) {
-        // 从空闲链表中移除伙伴块
         if (prev)
           prev->next = curr->next;
         else
@@ -141,53 +228,47 @@ void buddysystem_free(void *pa) {
     }
 
     if (!curr)
-      break; // 伙伴块不可用，停止合并
+      break;
 
-    // 合并当前块和伙伴块
-    if ((uint64)hdr > buddy_pa)
-      hdr = (struct header*)buddy_pa;
+    if ((uint64)pa > buddy_pa)
+      pa = (void*)buddy_pa;
     order++;
   }
 
-  // 将合并后的块加入空闲链表
-  struct run *r = (struct run*)hdr;
+  struct run *r = (struct run*)pa;
   r->next = buddy_system.freelist[order];
   buddy_system.freelist[order] = r;
 
   release(&buddy_system.lock);
 }
 
-void* buddysystem_alloc(int order) {
+void* buddysystem_alloc(int order, int skip_metadata) {
   acquire(&buddy_system.lock);
   struct run *r = 0;
 
-  // 从指定的 order 开始向上查找更大的块
   for (int i = order; i < MAX_ORDER; i++) {
     if (buddy_system.freelist[i]) {
       r = buddy_system.freelist[i];
       buddy_system.freelist[i] = r->next;
 
-      // 如果找到的块比需要的块大，则切分
       while (i > order) {
         i--;
-        uint64 buddy_pa = (uint64)r + (1 << (i + UNIT_SIZE_LOG2)); // 计算伙伴地址
+        uint64 buddy_pa = (uint64)r + (1 << (i + UNIT_SIZE_LOG2));
         struct run *buddy = (struct run*)buddy_pa;
 
-        // 将伙伴块加入到更小的 order 的空闲链表中
         buddy->next = buddy_system.freelist[i];
         buddy_system.freelist[i] = buddy;
       }
 
-      // 在分配的块头部存储 header 信息
-      struct header *hdr = (struct header*)r;
-      hdr->order = order;
-
       release(&buddy_system.lock);
-      return (void*)((char*)r + sizeof(struct header)); // 返回用户数据区域
+
+      // 记录元数据
+      if (!skip_metadata) add_metadata((void*)r, order);
+
+      return (void*)r; // 返回页对齐的地址
     }
   }
 
-  // 如果没有找到合适的块，分配失败
   printf("Buddy allocation failed: no free blocks for order %d\n", order);
   release(&buddy_system.lock);
   return 0;
@@ -197,29 +278,44 @@ void* buddysystem_alloc(int order) {
 void buddysystem_init(void* start, void* end) {
   initlock(&buddy_system.lock, "buddy_system");
   for (int i = 0; i < MAX_ORDER; i++) {
-    // initialize the free list using NULL
+    // 初始化空闲链表
     buddy_system.freelist[i] = 0;
   }
 
   char* p = (char*)PGROUNDUP((uint64)start);
   for (; p + PGSIZE <= (char*)end; p += PGSIZE) {
-    // 设置 header 的 order 值
-    struct header *hdr = (struct header*)p;
-    hdr->order = 6; // 每个页块的大小为 4KB，对应 order = 6
-
-    // 将块释放到伙伴系统
-    buddysystem_free((void*)(p + sizeof(struct header)));
+    // 将每个页块释放到伙伴系统，默认 order 为 6（4KB），跳过元数据
+    buddysystem_free((void*)p, 1);
   }
+
+  // 初始化元数据管理器
+  metadata_manager_init();
 }
 
 // implement kmalloc and kmfree using buddy system
 void* malloc(int size) {
   int order = 0;
-  while ((1 << order) * UNIT_SIZE < size + sizeof(struct header)) // 包括 header 的大小
+
+  // 计算所需的最小 order，确保分配的内存块足够大
+  while ((1 << order) * UNIT_SIZE < size)
     order++;
-  return buddysystem_alloc(order);
+
+  // 调用伙伴系统分配内存
+  void* addr = buddysystem_alloc(order, 0);
+  if (addr == 0) {
+    printf("malloc: failed to allocate memory of size %d\n", size);
+    return 0;
+  }
+
+  return addr; // 返回分配的内存地址
 }
 
 void mfree(void *pa) {
-  buddysystem_free(pa);
+  if (pa == 0) {
+    printf("mfree: attempt to free null pointer\n");
+    return;
+  }
+
+  // 调用伙伴系统释放内存
+  buddysystem_free(pa, 0);
 }
