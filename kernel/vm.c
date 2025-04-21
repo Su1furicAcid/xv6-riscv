@@ -330,6 +330,7 @@ void demo_allocator() {
       printf("Error: Memory allocated at address %p is not aligned.\n", non_aligned_alloc);
     }
     mfree(non_aligned_alloc);
+    printf("Freed malloc\n");
   }
 
   printf("Allocating small objects using malloc...\n");
